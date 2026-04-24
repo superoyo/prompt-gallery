@@ -634,15 +634,15 @@ def _gen_leonardo(api_key, prompt, neg_prompt, size_key):
 
 def _gen_google_imagen(api_key: str, prompt: str, size_key: str):
     """
-    Google Image Generation ผ่าน Gemini Developer API (AI Studio key)
-    ลองโมเดลตามลำดับ จนกว่าจะสำเร็จ:
-      1. gemini-2.0-flash-preview-image-generation  (native image gen)
-      2. gemini-2.0-flash-exp                       (experimental)
-      3. imagen-3.0-generate-001 via generateContent (fallback)
+    Google Image Generation ผ่าน Gemini Developer API (AI Studio key AIza...)
+    ลองโมเดลตามลำดับโดยใช้ generateContent endpoint เท่านั้น:
+      1. gemini-2.0-flash-preview-image-generation
+      2. gemini-2.0-flash-exp
+      3. gemini-2.0-flash  (with responseModalities IMAGE+TEXT)
+    หมายเหตุ: `:predict` endpoint ใช้ได้เฉพาะ Vertex AI (Service Account) ไม่ใช่ AI Studio key
     """
     BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
-    # ----- helper: ดึงภาพจาก generateContent response -----
     def _extract_image_from_gc(result: dict):
         for cand in result.get('candidates', []):
             for part in cand.get('content', {}).get('parts', []):
@@ -652,73 +652,39 @@ def _gen_google_imagen(api_key: str, prompt: str, size_key: str):
                         return data
         return None
 
-    # ----- 1. gemini-2.0-flash-preview-image-generation -----
-    try:
-        url = f'{BASE}/gemini-2.0-flash-preview-image-generation:generateContent?key={api_key}'
-        payload = {
-            'contents': [{'parts': [{'text': prompt}]}],
-            'generationConfig': {'responseModalities': ['IMAGE']},
-        }
-        result = _http_post_json(url, payload, {})
-        b64 = _extract_image_from_gc(result)
-        if b64:
-            return _save_b64_image(b64), 0.02, _estimate_tokens(prompt)
-    except Exception as e1:
-        pass
+    models_to_try = [
+        ('gemini-2.0-flash-preview-image-generation', ['IMAGE']),
+        ('gemini-2.0-flash-exp',                      ['IMAGE', 'TEXT']),
+        ('gemini-2.0-flash',                          ['IMAGE', 'TEXT']),
+    ]
 
-    # ----- 2. gemini-2.0-flash-exp -----
-    try:
-        url = f'{BASE}/gemini-2.0-flash-exp:generateContent?key={api_key}'
-        payload = {
-            'contents': [{'parts': [{'text': prompt}]}],
-            'generationConfig': {'responseModalities': ['IMAGE', 'TEXT']},
-        }
-        result = _http_post_json(url, payload, {})
-        b64 = _extract_image_from_gc(result)
-        if b64:
-            return _save_b64_image(b64), 0.02, _estimate_tokens(prompt)
-    except Exception as e2:
-        pass
+    errors = {}
+    for model_name, modalities in models_to_try:
+        try:
+            url = f'{BASE}/{model_name}:generateContent?key={api_key}'
+            payload = {
+                'contents': [{'parts': [{'text': prompt}]}],
+                'generationConfig': {'responseModalities': modalities},
+            }
+            result = _http_post_json(url, payload, {})
+            b64 = _extract_image_from_gc(result)
+            if b64:
+                return _save_b64_image(b64), 0.02, _estimate_tokens(prompt)
+            # ได้ response แต่ไม่มีภาพ — เก็บ error ไว้
+            errors[model_name] = 'response OK แต่ไม่มี inlineData image'
+        except Exception as exc:
+            errors[model_name] = str(exc)[:200]
 
-    # ----- 3. imagen-3.0-generate-001 via generateContent -----
-    try:
-        url = f'{BASE}/imagen-3.0-generate-001:generateContent?key={api_key}'
-        payload = {
-            'contents': [{'parts': [{'text': prompt}]}],
-            'generationConfig': {'responseModalities': ['IMAGE']},
-        }
-        result = _http_post_json(url, payload, {})
-        b64 = _extract_image_from_gc(result)
-        if b64:
-            return _save_b64_image(b64), 0.02, _estimate_tokens(prompt)
-    except Exception as e3:
-        # ลอง predict endpoint เป็น fallback สุดท้าย
-        pass
-
-    # ----- 4. imagen-3.0-generate-001 via predict (Vertex-style) -----
-    ar_map = {'1:1': '1:1', '16:9': '16:9', '9:16': '9:16', '4:3': '4:3'}
-    url = f'{BASE}/imagen-3.0-generate-001:predict?key={api_key}'
-    payload = {
-        'instances': [{'prompt': prompt}],
-        'parameters': {
-            'sampleCount': 1,
-            'aspectRatio': ar_map.get(size_key, '1:1'),
-            'safetySetting': 'block_only_high',
-        }
-    }
-    result = _http_post_json(url, payload, {})
-    predictions = result.get('predictions') or []
-    if not predictions:
-        raise Exception(
-            'Google Gemini: ไม่ได้รับภาพจาก API\n'
-            'ลองแล้วทุกโมเดล: gemini-2.0-flash-preview-image-generation, '
-            'gemini-2.0-flash-exp, imagen-3.0-generate-001\n'
-            'กรุณาตรวจสอบว่า API key ถูกต้องและเปิดใช้งาน Image Generation ใน AI Studio'
-        )
-    b64 = predictions[0].get('bytesBase64Encoded', '')
-    if not b64:
-        raise Exception('Google Imagen: ไม่มีข้อมูลภาพใน predictions response')
-    return _save_b64_image(b64), 0.02, _estimate_tokens(prompt)
+    # ทุก model ล้มเหลว — รายงานรายละเอียด
+    err_lines = '\n'.join(f'  • {m}: {e}' for m, e in errors.items())
+    raise Exception(
+        f'Google Gemini: ไม่สามารถสร้างภาพได้ ลองแล้ว {len(errors)} โมเดล:\n'
+        f'{err_lines}\n'
+        f'กรุณาตรวจสอบ:\n'
+        f'  1. API key ถูกต้อง (ขึ้นต้นด้วย AIza...)\n'
+        f'  2. เปิดใช้งาน "Generative Language API" ใน Google Cloud Console\n'
+        f'  3. เปิด Image Generation feature ใน AI Studio (aistudio.google.com)'
+    )
 
 
 def _call_platform_api(platform, prompt, neg_prompt, size_key, quality):
