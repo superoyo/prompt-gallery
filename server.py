@@ -235,31 +235,30 @@ def init_db():
 
 
 def _patch_google_imagen_docs():
-    """อัปเดต docs_guide ของ google-imagen3 ให้ระบุ AI Studio key ชัดเจน"""
+    """อัปเดต docs_guide ของ google-imagen3 ให้ถูกต้อง"""
     new_guide = (
-        '## Google Imagen 3 (AI Studio)\n\n'
-        '### วิธีขอ API Key (ง่ายที่สุด!)\n'
+        '## Google Image Generation (AI Studio)\n\n'
+        '### วิธีขอ API Key\n'
         '1. ไปที่ **https://aistudio.google.com/apikey**\n'
         '2. คลิก **Create API key**\n'
-        '3. คัดลอก key (ขึ้นต้นด้วย `AIza...`)\n'
-        '4. นำมาใส่ในช่อง API Key ด้านบนได้เลย ✅\n\n'
+        '3. คัดลอก key (ขึ้นต้นด้วย `AIza...`) มาใส่ในช่อง API Key ✅\n\n'
+        '### โมเดลที่ระบบลองตามลำดับ\n'
+        '1. `gemini-2.0-flash-preview-image-generation` — native image gen (แนะนำ)\n'
+        '2. `gemini-2.0-flash-exp` — experimental multimodal\n'
+        '3. `imagen-3.0-generate-001` — Imagen 3 (ถ้า account มีสิทธิ์)\n\n'
         '### ราคา\n'
-        '- **ฟรี** ใน Free tier (จำกัดจำนวนต่อวัน)\n'
-        '- Pay-as-you-go: ~**$0.02/ภาพ** (1:1 1024px)\n\n'
-        '### สิ่งที่รองรับ\n'
-        '- Aspect ratio: 1:1, 16:9, 9:16, 4:3\n'
-        '- โมเดล: `imagen-3.0-generate-001`\n'
-        '- ภาษาไทยในตัว prompt รองรับ ✅\n\n'
+        '- **ฟรี** ใน Free tier (gemini-2.0-flash)\n'
+        '- Imagen 3: ~$0.02/ภาพ\n\n'
         '### หมายเหตุ\n'
-        '- ไม่ต้องตั้งค่า GCP Project / Service Account\n'
-        '- AI Studio key ใช้ได้ทันที ไม่ต้องขอ whitelist\n'
-        '- ถ้า error 403: เปิด Imagen API ใน https://aistudio.google.com ก่อน'
+        '- ไม่ต้องสร้าง GCP Project หรือ Service Account\n'
+        '- ถ้า error 404: key ยังไม่ได้เปิดใช้ Image Generation\n'
+        '  → ไปที่ https://aistudio.google.com แล้วลอง generate ภาพสักครั้งก่อน\n'
+        '- ถ้าต้องการ Imagen 3 โดยเฉพาะ: ต้องมี Google Cloud billing account'
     )
     with get_db() as conn:
         conn.execute(
-            "UPDATE ai_platforms SET docs_guide=?, base_url=? WHERE slug='google-imagen3'",
-            (new_guide,
-             'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict')
+            "UPDATE ai_platforms SET docs_guide=? WHERE slug='google-imagen3'",
+            (new_guide,)
         )
 
 
@@ -635,37 +634,91 @@ def _gen_leonardo(api_key, prompt, neg_prompt, size_key):
 
 def _gen_google_imagen(api_key: str, prompt: str, size_key: str):
     """
-    Google Imagen 3 ผ่าน AI Studio (Gemini Developer API)
-    ใช้ key จาก https://aistudio.google.com/apikey โดยตรง
+    Google Image Generation ผ่าน Gemini Developer API (AI Studio key)
+    ลองโมเดลตามลำดับ จนกว่าจะสำเร็จ:
+      1. gemini-2.0-flash-preview-image-generation  (native image gen)
+      2. gemini-2.0-flash-exp                       (experimental)
+      3. imagen-3.0-generate-001 via generateContent (fallback)
     """
-    # aspect ratio ที่ Imagen 3 รองรับ
-    ar_map = {'1:1': '1:1', '16:9': '16:9', '9:16': '9:16', '4:3': '4:3', '3:4': '3:4'}
-    ar = ar_map.get(size_key, '1:1')
+    BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
-    url = (f'https://generativelanguage.googleapis.com/v1beta'
-           f'/models/imagen-3.0-generate-001:predict?key={api_key}')
+    # ----- helper: ดึงภาพจาก generateContent response -----
+    def _extract_image_from_gc(result: dict):
+        for cand in result.get('candidates', []):
+            for part in cand.get('content', {}).get('parts', []):
+                if 'inlineData' in part:
+                    data = part['inlineData'].get('data', '')
+                    if data:
+                        return data
+        return None
+
+    # ----- 1. gemini-2.0-flash-preview-image-generation -----
+    try:
+        url = f'{BASE}/gemini-2.0-flash-preview-image-generation:generateContent?key={api_key}'
+        payload = {
+            'contents': [{'parts': [{'text': prompt}]}],
+            'generationConfig': {'responseModalities': ['IMAGE']},
+        }
+        result = _http_post_json(url, payload, {})
+        b64 = _extract_image_from_gc(result)
+        if b64:
+            return _save_b64_image(b64), 0.02, _estimate_tokens(prompt)
+    except Exception as e1:
+        pass
+
+    # ----- 2. gemini-2.0-flash-exp -----
+    try:
+        url = f'{BASE}/gemini-2.0-flash-exp:generateContent?key={api_key}'
+        payload = {
+            'contents': [{'parts': [{'text': prompt}]}],
+            'generationConfig': {'responseModalities': ['IMAGE', 'TEXT']},
+        }
+        result = _http_post_json(url, payload, {})
+        b64 = _extract_image_from_gc(result)
+        if b64:
+            return _save_b64_image(b64), 0.02, _estimate_tokens(prompt)
+    except Exception as e2:
+        pass
+
+    # ----- 3. imagen-3.0-generate-001 via generateContent -----
+    try:
+        url = f'{BASE}/imagen-3.0-generate-001:generateContent?key={api_key}'
+        payload = {
+            'contents': [{'parts': [{'text': prompt}]}],
+            'generationConfig': {'responseModalities': ['IMAGE']},
+        }
+        result = _http_post_json(url, payload, {})
+        b64 = _extract_image_from_gc(result)
+        if b64:
+            return _save_b64_image(b64), 0.02, _estimate_tokens(prompt)
+    except Exception as e3:
+        # ลอง predict endpoint เป็น fallback สุดท้าย
+        pass
+
+    # ----- 4. imagen-3.0-generate-001 via predict (Vertex-style) -----
+    ar_map = {'1:1': '1:1', '16:9': '16:9', '9:16': '9:16', '4:3': '4:3'}
+    url = f'{BASE}/imagen-3.0-generate-001:predict?key={api_key}'
     payload = {
         'instances': [{'prompt': prompt}],
         'parameters': {
             'sampleCount': 1,
-            'aspectRatio': ar,
+            'aspectRatio': ar_map.get(size_key, '1:1'),
             'safetySetting': 'block_only_high',
-            'personGeneration': 'allow_adult',
         }
     }
     result = _http_post_json(url, payload, {})
-
     predictions = result.get('predictions') or []
     if not predictions:
-        raise Exception('Google Imagen: ไม่ได้รับภาพจาก API (predictions ว่าง)')
-
+        raise Exception(
+            'Google Gemini: ไม่ได้รับภาพจาก API\n'
+            'ลองแล้วทุกโมเดล: gemini-2.0-flash-preview-image-generation, '
+            'gemini-2.0-flash-exp, imagen-3.0-generate-001\n'
+            'กรุณาตรวจสอบว่า API key ถูกต้องและเปิดใช้งาน Image Generation ใน AI Studio'
+        )
     b64 = predictions[0].get('bytesBase64Encoded', '')
     if not b64:
-        raise Exception('Google Imagen: ไม่มีข้อมูลภาพใน response')
-
-    # token usage (Imagen ไม่รายงาน tokens — ใช้ estimate)
-    tokens = _estimate_tokens(prompt)
-    return _save_b64_image(b64), 0.02, tokens
+        raise Exception('Google Imagen: ไม่มีข้อมูลภาพใน predictions response')
+    return _save_b64_image(b64), 0.02, _estimate_tokens(prompt)
 
 
 def _call_platform_api(platform, prompt, neg_prompt, size_key, quality):
