@@ -29,9 +29,11 @@ SUPER_ADMIN_EMAIL  = 'superoyo@gmail.com'
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-CATEGORIES = ['All', 'Social Media', 'Infographic', 'YouTube Thumbnail',
-              'Comic / Storyboard', 'Poster / Flyer', 'Product Marketing',
-              'Avatar / Profile', 'UI Mockup', 'Other']
+DEFAULT_CATEGORIES = [
+    'Social Media', 'Infographic', 'YouTube Thumbnail',
+    'Comic / Storyboard', 'Poster / Flyer', 'Product Marketing',
+    'Avatar / Profile', 'UI Mockup', 'Other'
+]
 
 
 # ─── Database ─────────────────────────────────────────────────────────────────
@@ -46,6 +48,13 @@ def get_db():
 def init_db():
     with get_db() as conn:
         conn.executescript('''
+            CREATE TABLE IF NOT EXISTS categories (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT UNIQUE NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                is_visible INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS users (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
                 username      TEXT UNIQUE NOT NULL,
@@ -90,6 +99,20 @@ def init_db():
                 conn.execute(f'ALTER TABLE users ADD COLUMN {col} {definition}')
 
     _ensure_super_admin()
+    _seed_categories()
+
+
+def _seed_categories():
+    """Seed DEFAULT_CATEGORIES ถ้า categories table ว่างอยู่"""
+    with get_db() as conn:
+        count = conn.execute('SELECT COUNT(*) FROM categories').fetchone()[0]
+        if count == 0:
+            now = datetime.now(timezone.utc).isoformat()
+            for i, name in enumerate(DEFAULT_CATEGORIES):
+                conn.execute(
+                    'INSERT OR IGNORE INTO categories (name, sort_order, is_visible, created_at) VALUES (?,?,1,?)',
+                    (name, i, now)
+                )
 
 
 def _ensure_super_admin():
@@ -403,7 +426,34 @@ def delete_prompt(prompt_id):
 
 @app.route('/api/categories', methods=['GET'])
 def get_categories():
-    return jsonify(CATEGORIES)
+    """
+    หน้าบ้านใช้ endpoint นี้
+    ?visible_only=1  → เฉพาะ is_visible=1 (default)
+    ?visible_only=0  → ทั้งหมด
+    ?with_count=1    → แนบจำนวน prompt แต่ละหมวดด้วย
+    """
+    visible_only = request.args.get('visible_only', '1') != '0'
+    with_count   = request.args.get('with_count', '0') == '1'
+
+    if with_count:
+        rows = get_db().execute('''
+            SELECT c.id, c.name, c.sort_order, c.is_visible,
+                   COUNT(p.id) AS prompt_count
+            FROM categories c
+            LEFT JOIN prompts p ON p.category = c.name
+            WHERE (? = 0 OR c.is_visible = 1)
+            GROUP BY c.id
+            ORDER BY c.sort_order, c.name
+        ''', (0 if not visible_only else 1,)).fetchall()
+        return jsonify([row_to_dict(r) for r in rows])
+
+    query = 'SELECT name FROM categories'
+    params = []
+    if visible_only:
+        query += ' WHERE is_visible=1'
+    query += ' ORDER BY sort_order, name'
+    rows = get_db().execute(query, params).fetchall()
+    return jsonify([r['name'] for r in rows])
 
 
 # ─── Admin Routes ─────────────────────────────────────────────────────────────
@@ -594,6 +644,123 @@ def admin_list_prompts():
         'total': total, 'page': page,
         'pages': (total + per_page - 1) // per_page
     })
+
+
+# ─── Admin Category Routes ────────────────────────────────────────────────────
+
+@app.route('/api/admin/categories', methods=['GET'])
+@require_admin
+def admin_list_categories():
+    """ดูทุกหมวดหมู่พร้อมจำนวน prompt และสถานะ"""
+    rows = get_db().execute('''
+        SELECT c.id, c.name, c.sort_order, c.is_visible, c.created_at,
+               COUNT(p.id) AS prompt_count
+        FROM categories c
+        LEFT JOIN prompts p ON p.category = c.name
+        GROUP BY c.id
+        ORDER BY c.sort_order, c.name
+    ''').fetchall()
+    return jsonify([row_to_dict(r) for r in rows])
+
+
+@app.route('/api/admin/categories', methods=['POST'])
+@require_admin
+def admin_create_category():
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'กรุณากรอกชื่อหมวดหมู่'}), 400
+    if len(name) > 60:
+        return jsonify({'error': 'ชื่อยาวเกิน 60 ตัวอักษร'}), 400
+
+    now = datetime.now(timezone.utc).isoformat()
+    with get_db() as conn:
+        # sort_order = max + 1
+        max_order = conn.execute('SELECT COALESCE(MAX(sort_order),0) FROM categories').fetchone()[0]
+        try:
+            cursor = conn.execute(
+                'INSERT INTO categories (name, sort_order, is_visible, created_at) VALUES (?,?,1,?)',
+                (name, max_order + 1, now)
+            )
+            cat_id = cursor.lastrowid
+        except sqlite3.IntegrityError:
+            return jsonify({'error': f'หมวดหมู่ "{name}" มีอยู่แล้ว'}), 409
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM categories WHERE id=?', (cat_id,)).fetchone()
+    return jsonify(row_to_dict(row)), 201
+
+
+@app.route('/api/admin/categories/<int:cat_id>', methods=['PATCH'])
+@require_admin
+def admin_update_category(cat_id):
+    data = request.get_json()
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM categories WHERE id=?', (cat_id,)).fetchone()
+        if not row:
+            return jsonify({'error': 'ไม่พบหมวดหมู่'}), 404
+
+        old_name   = row['name']
+        new_name   = (data.get('name') or old_name).strip()
+        is_visible = data.get('is_visible', row['is_visible'])
+        sort_order = data.get('sort_order', row['sort_order'])
+
+        try:
+            conn.execute(
+                'UPDATE categories SET name=?, is_visible=?, sort_order=? WHERE id=?',
+                (new_name, int(is_visible), int(sort_order), cat_id)
+            )
+            # อัปเดต category ใน prompts ด้วยถ้าชื่อเปลี่ยน
+            if new_name != old_name:
+                conn.execute('UPDATE prompts SET category=? WHERE category=?', (new_name, old_name))
+        except sqlite3.IntegrityError:
+            return jsonify({'error': f'ชื่อ "{new_name}" ซ้ำกับหมวดหมู่อื่น'}), 409
+
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM categories WHERE id=?', (cat_id,)).fetchone()
+    return jsonify(row_to_dict(row))
+
+
+@app.route('/api/admin/categories/<int:cat_id>/toggle-visible', methods=['PATCH'])
+@require_admin
+def admin_toggle_category_visible(cat_id):
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM categories WHERE id=?', (cat_id,)).fetchone()
+        if not row:
+            return jsonify({'error': 'ไม่พบหมวดหมู่'}), 404
+        new_state = 0 if row['is_visible'] else 1
+        conn.execute('UPDATE categories SET is_visible=? WHERE id=?', (new_state, cat_id))
+    return jsonify({'ok': True, 'is_visible': bool(new_state)})
+
+
+@app.route('/api/admin/categories/<int:cat_id>', methods=['DELETE'])
+@require_admin
+def admin_delete_category(cat_id):
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM categories WHERE id=?', (cat_id,)).fetchone()
+        if not row:
+            return jsonify({'error': 'ไม่พบหมวดหมู่'}), 404
+        # ป้องกันลบถ้ามี prompt ใช้อยู่
+        count = conn.execute(
+            'SELECT COUNT(*) FROM prompts WHERE category=?', (row['name'],)
+        ).fetchone()[0]
+        if count > 0:
+            return jsonify({'error': f'ไม่สามารถลบได้ มี {count} prompt ใช้หมวดหมู่นี้อยู่'}), 409
+        conn.execute('DELETE FROM categories WHERE id=?', (cat_id,))
+    return jsonify({'ok': True})
+
+
+@app.route('/api/admin/categories/reorder', methods=['POST'])
+@require_admin
+def admin_reorder_categories():
+    """รับ list ของ {id, sort_order} แล้วอัปเดตลำดับ"""
+    items = request.get_json()
+    if not isinstance(items, list):
+        return jsonify({'error': 'รูปแบบข้อมูลไม่ถูกต้อง'}), 400
+    with get_db() as conn:
+        for item in items:
+            conn.execute('UPDATE categories SET sort_order=? WHERE id=?',
+                         (item.get('sort_order', 0), item.get('id')))
+    return jsonify({'ok': True})
 
 
 # ─── Static Routes ────────────────────────────────────────────────────────────

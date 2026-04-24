@@ -3,12 +3,13 @@ const state = {
   token:    localStorage.getItem('pg_token'),
   username: localStorage.getItem('pg_username'),
   isAdmin:  localStorage.getItem('pg_is_admin') === 'true',
-  category: 'All',
-  search: '',
-  page: 1,
+  category:   'All',
+  search:     '',
+  page:       1,
   totalPages: 1,
-  categories: [],
-  searchTimer: null,
+  categories:    [],     // [{id, name, is_visible, prompt_count}]
+  showAllCats:   false,  // false = เฉพาะที่มีข้อมูล, true = ทั้งหมด
+  searchTimer:   null,
 };
 
 /* ── API ─────────────────────────────────────────────────────────── */
@@ -79,7 +80,9 @@ async function logout() {
 /* ── Categories ──────────────────────────────────────────────────── */
 async function loadCategories() {
   try {
-    state.categories = await api('GET', '/api/categories');
+    // ดึงพร้อม prompt_count เสมอ
+    const data = await api('GET', '/api/categories?with_count=1&visible_only=0');
+    state.categories = data; // [{id, name, is_visible, prompt_count, sort_order}]
     renderTabs();
     populateCategorySelect();
   } catch (e) {
@@ -87,12 +90,47 @@ async function loadCategories() {
   }
 }
 
+function getVisibleCategories() {
+  return state.categories.filter(c => {
+    if (!c.is_visible) return false;            // ซ่อนโดย admin → ไม่แสดงเลย
+    if (state.showAllCats) return true;         // แสดงทั้งหมด
+    return c.prompt_count > 0;                 // เฉพาะที่มีข้อมูล
+  });
+}
+
 function renderTabs() {
   const el = document.getElementById('categoryTabs');
-  el.innerHTML = state.categories.map(c => `
-    <button class="tab-btn${c === state.category ? ' active' : ''}"
-            onclick="setCategory('${escHtml(c)}')">${escHtml(c)}</button>
+  const visible = getVisibleCategories();
+
+  // All tab + visible categories
+  const allTab = `<button class="tab-btn${state.category === 'All' ? ' active' : ''}" onclick="setCategory('All')">All</button>`;
+  const catTabs = visible.map(c => `
+    <button class="tab-btn${c.name === state.category ? ' active' : ''}"
+            onclick="setCategory('${escHtml(c.name)}')">
+      ${escHtml(c.name)}
+      ${!state.showAllCats ? '' : `<span class="tab-count">${c.prompt_count}</span>`}
+    </button>
   `).join('');
+
+  // toggle button
+  const toggle = `
+    <div class="tabs-toggle-wrap">
+      <button class="tabs-toggle ${state.showAllCats ? 'active' : ''}" onclick="toggleShowAllCats()" title="${state.showAllCats ? 'แสดงเฉพาะที่มีข้อมูล' : 'แสดงทั้งหมด'}">
+        ${state.showAllCats ? '✦ ทั้งหมด' : '✦ มีข้อมูล'}
+      </button>
+    </div>`;
+
+  el.innerHTML = allTab + catTabs + toggle;
+
+  // ถ้า category ปัจจุบันไม่อยู่ในรายการที่มองเห็น ให้ reset เป็น All
+  if (state.category !== 'All' && !visible.find(c => c.name === state.category)) {
+    state.category = 'All';
+  }
+}
+
+function toggleShowAllCats() {
+  state.showAllCats = !state.showAllCats;
+  renderTabs();
 }
 
 function setCategory(cat) {
@@ -105,9 +143,10 @@ function setCategory(cat) {
 function populateCategorySelect() {
   const sel = document.getElementById('categorySelect');
   if (!sel) return;
+  // form dropdown แสดงเฉพาะ visible categories
   sel.innerHTML = state.categories
-    .filter(c => c !== 'All')
-    .map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`)
+    .filter(c => c.is_visible)
+    .map(c => `<option value="${escHtml(c.name)}">${escHtml(c.name)}</option>`)
     .join('');
 }
 

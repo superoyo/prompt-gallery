@@ -448,6 +448,54 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 3px 10px rgba(37,99,235,0.3);
 }
 
+.tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: rgba(37,99,235,0.12);
+  color: var(--blue-2);
+  font-size: 0.65rem;
+  font-weight: 700;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.tab-btn.active .tab-count {
+  background: rgba(255,255,255,0.25);
+  color: white;
+}
+
+.tabs-toggle-wrap {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+
+.tabs-toggle {
+  padding: 5px 12px;
+  border-radius: 99px;
+  background: var(--bg-3);
+  color: var(--text-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  transition: var(--transition);
+  font-family: inherit;
+  white-space: nowrap;
+}
+.tabs-toggle:hover { border-color: var(--blue-3); color: var(--blue-2); }
+.tabs-toggle.active {
+  background: #eff6ff;
+  color: var(--blue-2);
+  border-color: var(--blue-5);
+}
+
 /* ── Gallery ───────────────────────────────────────────────────── */
 .gallery-section { padding: 36px 28px 72px; }
 .gallery-inner { max-width: 1280px; margin: 0 auto; }

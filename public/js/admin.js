@@ -48,6 +48,7 @@ function navigateTo(page) {
   if (page === 'dashboard') loadDashboard();
   else if (page === 'users')   loadUsers(1);
   else if (page === 'prompts') loadPrompts(1);
+  else if (page === 'categories') loadCategories();
   else if (page === 'logs')    loadLogs(1);
 }
 
@@ -228,6 +229,148 @@ async function adminDeletePrompt(id) {
     await api('DELETE', `/api/prompts/${id}`);
     toast('ลบ prompt สำเร็จ', 'success');
     loadPrompts(A.promptsPage);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ── Categories ─────────────────────────────────────────────────── */
+let catEditId = null;
+
+async function loadCategories() {
+  try {
+    const cats = await api('GET', '/api/admin/categories');
+    renderCategoriesTable(cats);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function renderCategoriesTable(cats) {
+  const tbody = document.getElementById('categoryTbody');
+  if (!cats.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:40px">ยังไม่มีหมวดหมู่</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cats.map((c, idx) => `
+    <tr id="cat-row-${c.id}">
+      <td>
+        <div style="display:flex;gap:4px;align-items:center">
+          <button class="btn-sm btn-sm-primary" style="padding:3px 7px;font-size:.7rem" title="เลื่อนขึ้น"
+            onclick="moveCat(${c.id}, ${c.sort_order}, -1)" ${idx === 0 ? 'disabled' : ''}>▲</button>
+          <button class="btn-sm btn-sm-primary" style="padding:3px 7px;font-size:.7rem" title="เลื่อนลง"
+            onclick="moveCat(${c.id}, ${c.sort_order}, 1)" ${idx === cats.length-1 ? 'disabled' : ''}>▼</button>
+          <span style="color:var(--text-3);font-size:.75rem;width:24px;text-align:center">${idx+1}</span>
+        </div>
+      </td>
+      <td>
+        <span style="font-weight:600">${esc(c.name)}</span>
+      </td>
+      <td>
+        <span class="badge ${c.prompt_count > 0 ? 'badge-active' : ''}" style="${c.prompt_count === 0 ? 'background:#f8faff;color:var(--text-3);border-color:var(--border)' : ''}">
+          ${c.prompt_count} prompts
+        </span>
+      </td>
+      <td>
+        <label class="toggle-switch">
+          <input type="checkbox" ${c.is_visible ? 'checked' : ''}
+                 onchange="toggleCatVisible(${c.id}, this)" />
+          <div class="toggle-track"></div>
+          <span class="toggle-label">${c.is_visible ? 'แสดง' : 'ซ่อน'}</span>
+        </label>
+      </td>
+      <td>
+        <div class="action-group">
+          <button class="btn-sm btn-sm-primary" onclick="openEditCategoryModal(${c.id}, '${esc(c.name)}')">✏️ แก้ไข</button>
+          <button class="btn-sm btn-sm-danger" onclick="deleteCategory(${c.id}, '${esc(c.name)}', ${c.prompt_count})"
+            ${c.prompt_count > 0 ? 'disabled title="มี prompt ใช้อยู่ ลบไม่ได้"' : ''}>🗑 ลบ</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openAddCategoryModal() {
+  catEditId = null;
+  document.getElementById('catFormTitle').textContent = 'เพิ่มหมวดหมู่ใหม่';
+  document.getElementById('catNameInput').value = '';
+  document.getElementById('catFormError').textContent = '';
+  document.getElementById('catFormCard').style.display = 'block';
+  document.getElementById('catNameInput').focus();
+}
+
+function openEditCategoryModal(id, name) {
+  catEditId = id;
+  document.getElementById('catFormTitle').textContent = 'แก้ไขหมวดหมู่';
+  document.getElementById('catNameInput').value = name;
+  document.getElementById('catFormError').textContent = '';
+  document.getElementById('catFormCard').style.display = 'block';
+  document.getElementById('catNameInput').focus();
+}
+
+function closeCatForm() {
+  document.getElementById('catFormCard').style.display = 'none';
+  catEditId = null;
+}
+
+async function saveCategoryForm() {
+  const name = document.getElementById('catNameInput').value.trim();
+  const errEl = document.getElementById('catFormError');
+  errEl.textContent = '';
+  if (!name) { errEl.textContent = 'กรุณากรอกชื่อ'; return; }
+  try {
+    if (catEditId) {
+      await api('PATCH', `/api/admin/categories/${catEditId}`, { name });
+      toast('แก้ไขหมวดหมู่สำเร็จ', 'success');
+    } else {
+      await api('POST', '/api/admin/categories', { name });
+      toast('เพิ่มหมวดหมู่สำเร็จ', 'success');
+    }
+    closeCatForm();
+    loadCategories();
+  } catch (e) { errEl.textContent = e.message; }
+}
+
+// Enter key submit
+document.getElementById('catNameInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') saveCategoryForm();
+});
+
+async function toggleCatVisible(id, checkbox) {
+  const label = checkbox.closest('.toggle-switch').querySelector('.toggle-label');
+  try {
+    const res = await api('PATCH', `/api/admin/categories/${id}/toggle-visible`);
+    label.textContent = res.is_visible ? 'แสดง' : 'ซ่อน';
+    toast(res.is_visible ? 'แสดงหมวดหมู่แล้ว' : 'ซ่อนหมวดหมู่แล้ว', 'success');
+  } catch (e) {
+    checkbox.checked = !checkbox.checked; // revert
+    toast(e.message, 'error');
+  }
+}
+
+async function deleteCategory(id, name, promptCount) {
+  if (promptCount > 0) { toast('มี prompt ใช้อยู่ ลบไม่ได้', 'error'); return; }
+  if (!confirm(`ลบหมวดหมู่ "${name}" ?`)) return;
+  try {
+    await api('DELETE', `/api/admin/categories/${id}`);
+    toast('ลบหมวดหมู่สำเร็จ', 'success');
+    loadCategories();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ย้ายลำดับ: โหลดใหม่ทั้งหมดแล้ว reorder
+let _catCache = [];
+async function moveCat(id, currentOrder, dir) {
+  try {
+    const cats = await api('GET', '/api/admin/categories');
+    const idx  = cats.findIndex(c => c.id === id);
+    const target = idx + dir;
+    if (target < 0 || target >= cats.length) return;
+
+    // swap sort_order
+    const reorder = cats.map((c, i) => ({ id: c.id, sort_order: i }));
+    const tmp = reorder[idx].sort_order;
+    reorder[idx].sort_order   = reorder[target].sort_order;
+    reorder[target].sort_order = tmp;
+
+    await api('POST', '/api/admin/categories/reorder', reorder);
+    loadCategories();
   } catch (e) { toast(e.message, 'error'); }
 }
 
