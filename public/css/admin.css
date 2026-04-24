@@ -73,6 +73,14 @@ body { background: var(--bg); color: var(--text); display: flex; overflow: hidde
 
 .nav-divider { height: 1px; background: var(--border); margin: 8px 4px; }
 
+.nav-item-back {
+  color: var(--blue-2) !important;
+  border: 1px solid var(--blue-5);
+  background: #eff6ff;
+  margin-top: 2px;
+}
+.nav-item-back:hover { background: #dbeafe !important; border-color: var(--blue-3); }
+
 .sidebar-footer { padding: 14px 14px 18px; border-top: 1px solid var(--border); }
 
 .admin-info {

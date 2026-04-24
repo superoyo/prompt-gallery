@@ -262,6 +262,30 @@ a:hover { text-decoration: underline; }
 }
 .btn-logout:hover { border-color: #fda4af; color: #e11d48; background: #fff1f2; }
 
+.btn-admin-console {
+  padding: 7px 14px;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(79,70,229,0.25);
+  background: #eef2ff;
+  color: #4f46e5;
+  transition: var(--transition);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: var(--shadow-sm);
+}
+.btn-admin-console:hover {
+  background: #e0e7ff;
+  border-color: #4f46e5;
+  text-decoration: none;
+  color: #4338ca;
+  transform: translateY(-1px);
+}
+
 /* ── Hero ──────────────────────────────────────────────────────── */
 .hero {
   padding: 88px 28px 72px;

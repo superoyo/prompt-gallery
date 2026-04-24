@@ -1,7 +1,9 @@
 /* ── State ──────────────────────────────────────────────────────── */
 const A = {
-  token:    localStorage.getItem('pg_admin_token'),
-  username: localStorage.getItem('pg_admin_username'),
+  // ใช้ token เดียวกับหน้าหลัก
+  token:    localStorage.getItem('pg_token'),
+  username: localStorage.getItem('pg_username'),
+  isAdmin:  localStorage.getItem('pg_is_admin') === 'true',
   page:     'dashboard',
   resetUserId: null,
   usersPage: 1, promptsPage: 1, logsPage: 1,
@@ -20,44 +22,12 @@ async function api(method, path, body = null) {
   return data;
 }
 
-/* ── Auth ───────────────────────────────────────────────────────── */
-document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const form = e.target;
-  const err  = document.getElementById('loginError');
-  err.textContent = '';
-  try {
-    const data = await api('POST', '/api/auth/login', {
-      username: form.username.value.trim(),
-      password: form.password.value,
-    });
-    if (!data.is_admin) {
-      err.textContent = 'บัญชีนี้ไม่มีสิทธิ์ Admin';
-      return;
-    }
-    A.token    = data.token;
-    A.username = data.username;
-    localStorage.setItem('pg_admin_token', data.token);
-    localStorage.setItem('pg_admin_username', data.username);
-    enterAdmin();
-  } catch (ex) {
-    err.textContent = ex.message;
-  }
-});
-
+/* ── Logout ─────────────────────────────────────────────────────── */
 function adminLogout() {
-  A.token = A.username = null;
-  localStorage.removeItem('pg_admin_token');
-  localStorage.removeItem('pg_admin_username');
-  document.getElementById('loginGate').classList.remove('hidden');
-  document.querySelector('.sidebar').style.display = 'none';
-}
-
-function enterAdmin() {
-  document.getElementById('loginGate').classList.add('hidden');
-  document.querySelector('.sidebar').style.display = 'flex';
-  document.getElementById('adminInfo').textContent = A.username;
-  navigateTo('dashboard');
+  localStorage.removeItem('pg_token');
+  localStorage.removeItem('pg_username');
+  localStorage.removeItem('pg_is_admin');
+  window.location.href = '/';
 }
 
 /* ── Navigation ─────────────────────────────────────────────────── */
@@ -76,9 +46,9 @@ function navigateTo(page) {
   document.getElementById(`page-${page}`)?.classList.add('active');
 
   if (page === 'dashboard') loadDashboard();
-  else if (page === 'users') loadUsers(1);
+  else if (page === 'users')   loadUsers(1);
   else if (page === 'prompts') loadPrompts(1);
-  else if (page === 'logs') loadLogs(1);
+  else if (page === 'logs')    loadLogs(1);
 }
 
 /* ── Dashboard ──────────────────────────────────────────────────── */
@@ -177,7 +147,7 @@ async function toggleDisable(userId, currentState) {
   const action = currentState ? 'เปิดใช้งาน' : 'ระงับ';
   if (!confirm(`ยืนยันการ${action}บัญชีนี้?`)) return;
   try {
-    const res = await api('PATCH', `/api/admin/users/${userId}/toggle-disable`);
+    await api('PATCH', `/api/admin/users/${userId}/toggle-disable`);
     toast(`${action}บัญชีสำเร็จ`, 'success');
     loadUsers(A.usersPage);
   } catch (e) { toast(e.message, 'error'); }
@@ -348,18 +318,26 @@ function fmt(iso) {
 }
 
 /* ── Init ────────────────────────────────────────────────────────── */
-function init() {
-  if (A.token && A.username) {
-    // ตรวจสอบว่า token ยังใช้ได้
-    api('GET', '/api/auth/me').then(data => {
-      if (data.is_admin) {
-        enterAdmin();
-      } else {
-        adminLogout();
-      }
-    }).catch(() => adminLogout());
-  } else {
-    document.querySelector('.sidebar').style.display = 'none';
+async function init() {
+  if (!A.token) {
+    // ไม่ได้ login → กลับหน้าหลัก
+    window.location.href = '/';
+    return;
+  }
+  try {
+    // ตรวจสอบ token และสิทธิ์ admin กับ server
+    const me = await api('GET', '/api/auth/me');
+    if (!me.is_admin) {
+      alert('คุณไม่มีสิทธิ์เข้าถึง Admin Console');
+      window.location.href = '/';
+      return;
+    }
+    // แสดง UI
+    document.querySelector('.sidebar').style.display = 'flex';
+    document.getElementById('adminInfo').textContent = A.username;
+    navigateTo('dashboard');
+  } catch (e) {
+    window.location.href = '/';
   }
 }
 

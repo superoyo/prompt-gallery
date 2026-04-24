@@ -1,7 +1,8 @@
 /* ── State ───────────────────────────────────────────────────────── */
 const state = {
-  token: localStorage.getItem('pg_token'),
+  token:    localStorage.getItem('pg_token'),
   username: localStorage.getItem('pg_username'),
+  isAdmin:  localStorage.getItem('pg_is_admin') === 'true',
   category: 'All',
   search: '',
   page: 1,
@@ -32,19 +33,23 @@ async function api(method, path, body = null, isForm = false) {
 }
 
 /* ── Auth ────────────────────────────────────────────────────────── */
-function setAuth(token, username) {
-  state.token = token;
+function setAuth(token, username, isAdmin = false) {
+  state.token    = token;
   state.username = username;
-  localStorage.setItem('pg_token', token);
+  state.isAdmin  = isAdmin;
+  localStorage.setItem('pg_token',    token);
   localStorage.setItem('pg_username', username);
+  localStorage.setItem('pg_is_admin', isAdmin ? 'true' : 'false');
   renderAuthArea();
 }
 
 function clearAuth() {
-  state.token = null;
+  state.token    = null;
   state.username = null;
+  state.isAdmin  = false;
   localStorage.removeItem('pg_token');
   localStorage.removeItem('pg_username');
+  localStorage.removeItem('pg_is_admin');
   renderAuthArea();
 }
 
@@ -53,6 +58,7 @@ function renderAuthArea() {
   if (state.token && state.username) {
     el.innerHTML = `
       <div class="auth-logged-in">
+        ${state.isAdmin ? `<a href="/admin" class="btn-admin-console">⚙ Admin Console</a>` : ''}
         <span class="auth-username">${escHtml(state.username)}</span>
         <button class="btn-logout" onclick="logout()">ออกจากระบบ</button>
       </div>`;
@@ -338,7 +344,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
       username: form.username.value.trim(),
       password: form.password.value,
     });
-    setAuth(data.token, data.username);
+    setAuth(data.token, data.username, data.is_admin || false);
     closeModal('loginModal');
     form.reset();
     toast(`ยินดีต้อนรับ, ${data.username}!`, 'success');
@@ -357,7 +363,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
       username: form.username.value.trim(),
       password: form.password.value,
     });
-    setAuth(data.token, data.username);
+    setAuth(data.token, data.username, data.is_admin || false);
     closeModal('registerModal');
     form.reset();
     toast(`สมัครสำเร็จ! ยินดีต้อนรับ, ${data.username}!`, 'success');
