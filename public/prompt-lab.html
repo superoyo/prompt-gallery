@@ -7,10 +7,11 @@
   <link rel="stylesheet" href="/css/style.css" />
   <link rel="stylesheet" href="/css/prompt-lab.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
 </head>
 <body>
 
+<!-- NAVBAR -->
 <header class="navbar">
   <div class="nav-inner">
     <a href="/" class="logo">
@@ -18,166 +19,154 @@
       <span>Prompt<strong>Gallery</strong></span>
     </a>
     <nav class="nav-links">
-      <a href="/" class="nav-pill">← Gallery</a>
+      <a href="/" class="nav-pill nav-pill-ghost">← Gallery</a>
       <div id="authArea"></div>
     </nav>
   </div>
 </header>
 
-<div class="lab-container">
-
-  <!-- Page Header -->
-  <div class="lab-header">
-    <div class="lab-header-text">
-      <h1 class="lab-title">🧪 Prompt Lab</h1>
-      <p class="lab-sub">ทดสอบ prompt กับ AI หลายตัวพร้อมกัน เปรียบเทียบผลลัพธ์และติดตามการใช้งาน</p>
-    </div>
+<!-- LOGIN GATE -->
+<div id="loginGate" class="login-gate" style="display:none">
+  <div class="login-gate-box">
+    <div class="login-gate-icon">🧪</div>
+    <h2>Prompt Lab</h2>
+    <p>เข้าสู่ระบบเพื่อทดสอบ prompt กับ AI image generator</p>
+    <button class="btn-primary" onclick="window.location.href='/'">เข้าสู่ระบบ / สมัครสมาชิก</button>
   </div>
+</div>
 
-  <!-- Login required notice (shown when not logged in) -->
-  <div id="loginNotice" class="login-notice" style="display:none">
-    <div class="notice-icon">🔐</div>
-    <div>
-      <strong>กรุณาเข้าสู่ระบบก่อนใช้งาน Prompt Lab</strong>
-      <p>ต้องเข้าสู่ระบบเพื่อ generate ภาพและบันทึกประวัติ</p>
+<!-- MAIN LAYOUT -->
+<div class="lab-layout" id="labLayout" style="display:none">
+
+  <!-- ── LEFT: Main Prompt Area ── -->
+  <main class="lab-main">
+
+    <div class="lab-heading">
+      <span class="lab-badge">🧪 Prompt Lab</span>
+      <h1 class="lab-title">สร้างภาพด้วย AI</h1>
+      <p class="lab-sub">พิมพ์ prompt แล้วเลือก AI ที่ต้องการ</p>
     </div>
-    <button class="btn-primary" onclick="window.location.href='/'">เข้าสู่ระบบ</button>
-  </div>
 
-  <!-- Main Lab (shown when logged in) -->
-  <div id="labMain">
-
-    <!-- Step 1: Platform Selector -->
-    <section class="lab-section">
-      <div class="section-label">
-        <span class="step-badge">1</span>
-        เลือก AI ที่ต้องการทดสอบ
-        <span class="selected-count" id="selectedCount">0 ตัวที่เลือก</span>
+    <!-- Prompt Card -->
+    <div class="prompt-card">
+      <div class="prompt-card-header">
+        <span class="prompt-card-label">✍️ Prompt</span>
+        <span class="token-badge" id="tokenBadge">0 tokens</span>
       </div>
-      <div class="platform-grid" id="platformGrid">
-        <div class="platform-loading">กำลังโหลด platforms...</div>
-      </div>
-      <p class="platform-hint" id="noPlatformsHint" style="display:none">
-        ⚠️ ยังไม่มี AI platform ที่ตั้งค่า API Key ไว้ — ติดต่อ Admin เพื่อเพิ่ม API Keys
-      </p>
-    </section>
-
-    <!-- Step 2: Prompt Input -->
-    <section class="lab-section">
-      <div class="section-label">
-        <span class="step-badge">2</span>
-        ใส่ Prompt
-      </div>
-      <div class="prompt-input-area">
-        <textarea id="promptInput" class="lab-textarea" rows="5"
-          placeholder="A photorealistic portrait of a young Thai woman, soft studio lighting, shallow depth of field, 8k, professional photography..."></textarea>
-        <div class="prompt-actions-row">
-          <span class="token-estimate" id="tokenEstimate">~0 tokens</span>
-          <button class="btn-ghost btn-sm" onclick="clearPrompt()">ล้าง</button>
-        </div>
-      </div>
-      <div class="neg-prompt-wrap">
-        <button class="neg-toggle" id="negToggle" onclick="toggleNegPrompt()">
-          ＋ เพิ่ม Negative Prompt
+      <textarea
+        id="promptInput"
+        class="prompt-textarea"
+        placeholder="A cinematic portrait of a young woman standing in a neon-lit alley, rain-soaked streets reflecting colorful lights, shallow depth of field, 85mm lens, photorealistic, 8K..."
+        rows="6"
+      ></textarea>
+      <div class="neg-row">
+        <button class="neg-toggle-btn" id="negToggleBtn" onclick="toggleNeg()">
+          <span id="negToggleIcon">＋</span> Negative Prompt
         </button>
-        <div id="negPromptArea" style="display:none">
-          <textarea id="negPromptInput" class="lab-textarea lab-textarea-sm" rows="3"
-            placeholder="blurry, low quality, distorted, watermark, text, ugly..."></textarea>
+        <div id="negArea" style="display:none;margin-top:10px">
+          <textarea id="negInput" class="prompt-textarea prompt-textarea-neg"
+            placeholder="blurry, low quality, distorted, watermark, bad anatomy..."
+            rows="2"></textarea>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- Step 3: Settings -->
-    <section class="lab-section lab-settings">
-      <div class="section-label">
-        <span class="step-badge">3</span>
-        ตั้งค่า
-      </div>
-      <div class="settings-row">
-        <div class="setting-item">
-          <label>สัดส่วนภาพ</label>
-          <div class="ratio-selector" id="ratioSelector">
-            <button class="ratio-btn active" data-ratio="1:1">
-              <span class="ratio-icon ratio-square"></span> 1:1
-            </button>
-            <button class="ratio-btn" data-ratio="16:9">
-              <span class="ratio-icon ratio-wide"></span> 16:9
-            </button>
-            <button class="ratio-btn" data-ratio="9:16">
-              <span class="ratio-icon ratio-tall"></span> 9:16
-            </button>
-            <button class="ratio-btn" data-ratio="4:3">
-              <span class="ratio-icon ratio-landscape"></span> 4:3
-            </button>
+    <!-- Settings Card: AI dropdown + size + quality -->
+    <div class="settings-card">
+
+      <!-- Platform Dropdown -->
+      <div class="setting-group setting-group-ai">
+        <label class="setting-label">🤖 AI Platform</label>
+        <div class="platform-dropdown" id="platformDropdown">
+          <button class="platform-dropdown-btn" id="platformDropdownBtn" onclick="togglePlatformMenu(event)">
+            <span class="pd-icon" id="pdIcon">—</span>
+            <span class="pd-name" id="pdName">เลือก AI...</span>
+            <span class="pd-cost" id="pdCost"></span>
+            <svg class="pd-arrow" id="pdArrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="platform-menu" id="platformMenu" style="display:none">
+            <div id="platformMenuList">
+              <div class="pm-loading">กำลังโหลด...</div>
+            </div>
           </div>
         </div>
-        <div class="setting-item">
-          <label>คุณภาพ</label>
-          <select id="qualitySelect" class="lab-select">
-            <option value="standard">Standard</option>
-            <option value="high">High / HD</option>
-            <option value="low">Low (เร็วกว่า)</option>
-          </select>
+      </div>
+
+      <!-- Size -->
+      <div class="setting-group">
+        <label class="setting-label">📐 ขนาด</label>
+        <div class="ratio-row">
+          <button class="ratio-chip active" data-ratio="1:1"  onclick="setRatio(this)"><span class="rs rs-sq"></span>1:1</button>
+          <button class="ratio-chip"        data-ratio="16:9" onclick="setRatio(this)"><span class="rs rs-wd"></span>16:9</button>
+          <button class="ratio-chip"        data-ratio="9:16" onclick="setRatio(this)"><span class="rs rs-tl"></span>9:16</button>
+          <button class="ratio-chip"        data-ratio="4:3"  onclick="setRatio(this)"><span class="rs rs-ls"></span>4:3</button>
         </div>
       </div>
-    </section>
+
+      <!-- Quality -->
+      <div class="setting-group">
+        <label class="setting-label">✨ คุณภาพ</label>
+        <select id="qualitySelect" class="setting-select">
+          <option value="standard">Standard</option>
+          <option value="high">High / HD</option>
+          <option value="low">Low (เร็ว)</option>
+        </select>
+      </div>
+
+    </div>
 
     <!-- Generate Button -->
-    <div class="generate-area">
-      <button class="btn-generate" id="generateBtn" onclick="generate()" disabled>
-        <span class="generate-icon">🎨</span>
-        <span id="generateBtnText">Generate</span>
-      </button>
-      <div class="generate-hint" id="generateHint">เลือก platform และใส่ prompt ก่อน</div>
+    <button class="btn-generate" id="generateBtn" onclick="generate()" disabled>
+      <span class="gen-spinner" id="genSpinner" style="display:none"></span>
+      <span id="genLabel">🎨 Generate</span>
+    </button>
+
+    <p class="no-platform-notice" id="noPlatformNotice" style="display:none">
+      ⚠️ ยังไม่มี AI platform ที่พร้อมใช้งาน — ติดต่อ Admin เพื่อเพิ่ม API Keys
+    </p>
+
+    <!-- Result -->
+    <div id="resultArea" style="display:none" class="result-area">
+      <div class="result-divider"><span>ผลลัพธ์</span></div>
+      <div id="resultCard" class="result-card"></div>
     </div>
 
-    <!-- Results -->
-    <section class="lab-section" id="resultsSection" style="display:none">
-      <div class="section-label">ผลลัพธ์</div>
-      <div class="results-grid" id="resultsGrid"></div>
-    </section>
+  </main>
 
-    <!-- Tabs: History / Stats -->
-    <div class="lab-tabs">
-      <button class="lab-tab active" data-tab="history" onclick="switchTab('history')">📜 ประวัติ</button>
-      <button class="lab-tab" data-tab="stats" onclick="switchTab('stats')">📊 สถิติการใช้งาน</button>
-    </div>
+  <!-- ── RIGHT: History Sidebar ── -->
+  <aside class="lab-sidebar">
 
-    <!-- History Tab -->
-    <section id="tab-history" class="lab-tab-content">
-      <div class="history-filters">
-        <select id="historyPlatformFilter" class="lab-select lab-select-sm" onchange="loadHistory()">
-          <option value="">ทุก Platform</option>
+    <!-- Per-platform stats chips -->
+    <div class="sidebar-stats" id="sidebarStats"></div>
+
+    <!-- History feed -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-header">
+        <span class="sidebar-title">📜 ประวัติ</span>
+        <select id="historyFilter" class="sidebar-filter" onchange="loadHistory(1)">
+          <option value="">ทุก platform</option>
         </select>
-        <button class="btn-ghost btn-sm" onclick="loadHistory()">🔄 รีเฟรช</button>
       </div>
-      <div id="historyList">
-        <div class="loading-state"><div class="spinner"></div><p>กำลังโหลด...</p></div>
+      <div id="historyFeed">
+        <div class="sidebar-empty">ยังไม่มีประวัติ</div>
       </div>
-      <div class="pagination" id="historyPagination"></div>
-    </section>
+      <div id="historyPagination" class="sidebar-pagination"></div>
+    </div>
 
-    <!-- Stats Tab -->
-    <section id="tab-stats" class="lab-tab-content" style="display:none">
-      <div id="statsList">
-        <div class="loading-state"><div class="spinner"></div><p>กำลังโหลด...</p></div>
-      </div>
-    </section>
+  </aside>
 
-  </div><!-- end #labMain -->
+</div>
 
-</div><!-- end .lab-container -->
-
-<!-- Image Lightbox -->
-<div class="modal-overlay" id="lightboxModal" hidden>
-  <div class="modal modal-wide">
-    <button class="modal-close" onclick="closeLightbox()">&times;</button>
-    <div class="lightbox-content" id="lightboxContent"></div>
+<!-- Lightbox -->
+<div class="modal-overlay" id="lightbox" hidden>
+  <div class="lightbox-inner">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <img id="lightboxImg" src="" alt="" />
+    <div class="lightbox-meta" id="lightboxMeta"></div>
   </div>
 </div>
 
 <div class="toast-container" id="toastContainer"></div>
-
 <script src="/js/app.js"></script>
 <script src="/js/prompt-lab.js"></script>
 </body>
