@@ -38,6 +38,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18"/><circle cx="7" cy="7" r="1.5" fill="currentColor"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/><circle cx="7" cy="17" r="1.5" fill="currentColor"/></svg>
       หมวดหมู่
     </a>
+    <a href="#" class="nav-item" data-page="platforms">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      AI Platforms
+    </a>
     <a href="#" class="nav-item" data-page="logs">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
       Login Logs
@@ -155,6 +159,111 @@
         </thead>
         <tbody id="categoryTbody"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- AI Platforms Page -->
+  <div id="page-platforms" class="page">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">AI Platforms</h1>
+        <p class="page-sub">จัดการ AI ที่ใช้ใน Prompt Lab — ตั้งค่า API Key และควบคุมการแสดงผล</p>
+      </div>
+      <button class="btn-primary" onclick="openAddPlatformForm()">+ เพิ่ม Platform</button>
+    </div>
+
+    <!-- Usage Stats Row -->
+    <div class="stats-grid" id="platformStatsGrid" style="margin-bottom:20px"></div>
+
+    <!-- Add/Edit Form -->
+    <div class="cat-form-card" id="platformFormCard" style="display:none">
+      <div class="cat-form-title" id="platformFormTitle">เพิ่ม Platform ใหม่</div>
+      <div class="platform-form-grid">
+        <div class="pf-group">
+          <label>ชื่อ Platform *</label>
+          <input type="text" id="pfName" class="search-input" placeholder="เช่น My Custom AI" />
+        </div>
+        <div class="pf-group">
+          <label>Slug * (ตัวพิมพ์เล็ก ขีดกลางได้)</label>
+          <input type="text" id="pfSlug" class="search-input" placeholder="my-custom-ai" />
+        </div>
+        <div class="pf-group">
+          <label>Icon (emoji)</label>
+          <input type="text" id="pfIcon" class="search-input" placeholder="🤖" style="width:80px" />
+        </div>
+        <div class="pf-group">
+          <label>Cost per gen (USD)</label>
+          <input type="number" id="pfCost" class="search-input" placeholder="0.04" step="0.001" style="width:120px" />
+        </div>
+        <div class="pf-group" style="grid-column:1/-1">
+          <label>คำอธิบาย</label>
+          <input type="text" id="pfDesc" class="search-input" placeholder="คำอธิบายสั้น ๆ" />
+        </div>
+      </div>
+      <div class="cat-form-row" style="margin-top:12px">
+        <button class="btn-primary" onclick="savePlatformForm()">บันทึก</button>
+        <button class="btn-ghost" onclick="closePlatformForm()">ยกเลิก</button>
+      </div>
+      <p class="form-error" id="pfFormError"></p>
+    </div>
+
+    <!-- Platform Table -->
+    <div class="table-wrap" style="margin-top:16px">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Platform</th>
+            <th>Slug</th>
+            <th>API Key</th>
+            <th>Cost/gen</th>
+            <th>Generations</th>
+            <th>แสดง</th>
+            <th>จัดการ</th>
+          </tr>
+        </thead>
+        <tbody id="platformTbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Docs Guide Panel -->
+    <div class="docs-panel" id="docsPanel" style="display:none">
+      <div class="docs-panel-header">
+        <span class="docs-panel-title" id="docsPanelTitle">คู่มือการเชื่อมต่อ</span>
+        <button class="btn-ghost btn-sm" onclick="closeDocsPanel()">✕ ปิด</button>
+      </div>
+      <div class="docs-panel-body" id="docsPanelBody"></div>
+    </div>
+
+    <!-- API Key Edit Panel -->
+    <div class="apikey-panel" id="apikeyPanel" style="display:none">
+      <div class="apikey-panel-header">
+        <span>ตั้งค่า API Key — <strong id="apikeyPlatformName"></strong></span>
+        <button class="btn-ghost btn-sm" onclick="closeApikeyPanel()">✕ ปิด</button>
+      </div>
+      <div class="apikey-panel-body">
+        <div class="pf-group">
+          <label>API Key</label>
+          <div class="apikey-input-wrap">
+            <input type="password" id="apikeyInput" class="search-input" placeholder="sk-..." style="flex:1;font-family:'Fira Code',monospace" />
+            <button class="btn-ghost btn-sm" onclick="toggleApikeyVisibility()">👁</button>
+          </div>
+          <small style="color:var(--text-3);margin-top:4px;display:block">ปล่อยว่างเพื่อ disable platform นี้</small>
+        </div>
+        <div class="pf-group">
+          <label>Model (optional override)</label>
+          <input type="text" id="apikeyModel" class="search-input" placeholder="เช่น dall-e-3, sd3.5-large" />
+        </div>
+        <div class="pf-group">
+          <label>Extra Config (JSON)</label>
+          <textarea id="apikeyExtra" class="search-input" rows="3" placeholder='{"project_id": "my-gcp-project"}'
+            style="font-family:'Fira Code',monospace;resize:vertical"></textarea>
+        </div>
+        <div class="cat-form-row" style="margin-top:12px">
+          <button class="btn-primary" onclick="saveApiKey()">บันทึก API Key</button>
+          <button class="btn-ghost" onclick="closeApikeyPanel()">ยกเลิก</button>
+        </div>
+        <p class="form-error" id="apikeyError"></p>
+      </div>
     </div>
   </div>
 

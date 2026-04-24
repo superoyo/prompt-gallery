@@ -123,12 +123,17 @@ a:hover { text-decoration: underline; }
   text-decoration: none;
   box-shadow: var(--shadow-btn);
 }
+.nav-pill-lab {
+  background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+  box-shadow: 0 3px 12px rgba(124,58,237,0.3);
+}
 .nav-pill:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(37,99,235,0.45);
   text-decoration: none;
   color: #fff;
 }
+.nav-pill-lab:hover { box-shadow: 0 6px 20px rgba(124,58,237,0.5) !important; }
 
 /* ── Buttons ───────────────────────────────────────────────────── */
 .btn-primary {

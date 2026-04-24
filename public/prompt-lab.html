@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prompt Lab — Prompt Gallery</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/css/prompt-lab.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<header class="navbar">
+  <div class="nav-inner">
+    <a href="/" class="logo">
+      <span class="logo-icon">✦</span>
+      <span>Prompt<strong>Gallery</strong></span>
+    </a>
+    <nav class="nav-links">
+      <a href="/" class="nav-pill">← Gallery</a>
+      <div id="authArea"></div>
+    </nav>
+  </div>
+</header>
+
+<div class="lab-container">
+
+  <!-- Page Header -->
+  <div class="lab-header">
+    <div class="lab-header-text">
+      <h1 class="lab-title">🧪 Prompt Lab</h1>
+      <p class="lab-sub">ทดสอบ prompt กับ AI หลายตัวพร้อมกัน เปรียบเทียบผลลัพธ์และติดตามการใช้งาน</p>
+    </div>
+  </div>
+
+  <!-- Login required notice (shown when not logged in) -->
+  <div id="loginNotice" class="login-notice" style="display:none">
+    <div class="notice-icon">🔐</div>
+    <div>
+      <strong>กรุณาเข้าสู่ระบบก่อนใช้งาน Prompt Lab</strong>
+      <p>ต้องเข้าสู่ระบบเพื่อ generate ภาพและบันทึกประวัติ</p>
+    </div>
+    <button class="btn-primary" onclick="window.location.href='/'">เข้าสู่ระบบ</button>
+  </div>
+
+  <!-- Main Lab (shown when logged in) -->
+  <div id="labMain">
+
+    <!-- Step 1: Platform Selector -->
+    <section class="lab-section">
+      <div class="section-label">
+        <span class="step-badge">1</span>
+        เลือก AI ที่ต้องการทดสอบ
+        <span class="selected-count" id="selectedCount">0 ตัวที่เลือก</span>
+      </div>
+      <div class="platform-grid" id="platformGrid">
+        <div class="platform-loading">กำลังโหลด platforms...</div>
+      </div>
+      <p class="platform-hint" id="noPlatformsHint" style="display:none">
+        ⚠️ ยังไม่มี AI platform ที่ตั้งค่า API Key ไว้ — ติดต่อ Admin เพื่อเพิ่ม API Keys
+      </p>
+    </section>
+
+    <!-- Step 2: Prompt Input -->
+    <section class="lab-section">
+      <div class="section-label">
+        <span class="step-badge">2</span>
+        ใส่ Prompt
+      </div>
+      <div class="prompt-input-area">
+        <textarea id="promptInput" class="lab-textarea" rows="5"
+          placeholder="A photorealistic portrait of a young Thai woman, soft studio lighting, shallow depth of field, 8k, professional photography..."></textarea>
+        <div class="prompt-actions-row">
+          <span class="token-estimate" id="tokenEstimate">~0 tokens</span>
+          <button class="btn-ghost btn-sm" onclick="clearPrompt()">ล้าง</button>
+        </div>
+      </div>
+      <div class="neg-prompt-wrap">
+        <button class="neg-toggle" id="negToggle" onclick="toggleNegPrompt()">
+          ＋ เพิ่ม Negative Prompt
+        </button>
+        <div id="negPromptArea" style="display:none">
+          <textarea id="negPromptInput" class="lab-textarea lab-textarea-sm" rows="3"
+            placeholder="blurry, low quality, distorted, watermark, text, ugly..."></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 3: Settings -->
+    <section class="lab-section lab-settings">
+      <div class="section-label">
+        <span class="step-badge">3</span>
+        ตั้งค่า
+      </div>
+      <div class="settings-row">
+        <div class="setting-item">
+          <label>สัดส่วนภาพ</label>
+          <div class="ratio-selector" id="ratioSelector">
+            <button class="ratio-btn active" data-ratio="1:1">
+              <span class="ratio-icon ratio-square"></span> 1:1
+            </button>
+            <button class="ratio-btn" data-ratio="16:9">
+              <span class="ratio-icon ratio-wide"></span> 16:9
+            </button>
+            <button class="ratio-btn" data-ratio="9:16">
+              <span class="ratio-icon ratio-tall"></span> 9:16
+            </button>
+            <button class="ratio-btn" data-ratio="4:3">
+              <span class="ratio-icon ratio-landscape"></span> 4:3
+            </button>
+          </div>
+        </div>
+        <div class="setting-item">
+          <label>คุณภาพ</label>
+          <select id="qualitySelect" class="lab-select">
+            <option value="standard">Standard</option>
+            <option value="high">High / HD</option>
+            <option value="low">Low (เร็วกว่า)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Generate Button -->
+    <div class="generate-area">
+      <button class="btn-generate" id="generateBtn" onclick="generate()" disabled>
+        <span class="generate-icon">🎨</span>
+        <span id="generateBtnText">Generate</span>
+      </button>
+      <div class="generate-hint" id="generateHint">เลือก platform และใส่ prompt ก่อน</div>
+    </div>
+
+    <!-- Results -->
+    <section class="lab-section" id="resultsSection" style="display:none">
+      <div class="section-label">ผลลัพธ์</div>
+      <div class="results-grid" id="resultsGrid"></div>
+    </section>
+
+    <!-- Tabs: History / Stats -->
+    <div class="lab-tabs">
+      <button class="lab-tab active" data-tab="history" onclick="switchTab('history')">📜 ประวัติ</button>
+      <button class="lab-tab" data-tab="stats" onclick="switchTab('stats')">📊 สถิติการใช้งาน</button>
+    </div>
+
+    <!-- History Tab -->
+    <section id="tab-history" class="lab-tab-content">
+      <div class="history-filters">
+        <select id="historyPlatformFilter" class="lab-select lab-select-sm" onchange="loadHistory()">
+          <option value="">ทุก Platform</option>
+        </select>
+        <button class="btn-ghost btn-sm" onclick="loadHistory()">🔄 รีเฟรช</button>
+      </div>
+      <div id="historyList">
+        <div class="loading-state"><div class="spinner"></div><p>กำลังโหลด...</p></div>
+      </div>
+      <div class="pagination" id="historyPagination"></div>
+    </section>
+
+    <!-- Stats Tab -->
+    <section id="tab-stats" class="lab-tab-content" style="display:none">
+      <div id="statsList">
+        <div class="loading-state"><div class="spinner"></div><p>กำลังโหลด...</p></div>
+      </div>
+    </section>
+
+  </div><!-- end #labMain -->
+
+</div><!-- end .lab-container -->
+
+<!-- Image Lightbox -->
+<div class="modal-overlay" id="lightboxModal" hidden>
+  <div class="modal modal-wide">
+    <button class="modal-close" onclick="closeLightbox()">&times;</button>
+    <div class="lightbox-content" id="lightboxContent"></div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="/js/app.js"></script>
+<script src="/js/prompt-lab.js"></script>
+</body>
+</html>

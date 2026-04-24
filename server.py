@@ -8,6 +8,9 @@ import json
 import time
 import string
 import random
+import io
+import urllib.request
+import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 from functools import wraps
@@ -34,6 +37,99 @@ DEFAULT_CATEGORIES = [
     'Comic / Storyboard', 'Poster / Flyer', 'Product Marketing',
     'Avatar / Profile', 'UI Mockup', 'Other'
 ]
+
+DEFAULT_PLATFORMS = [
+    {
+        'name': 'OpenAI DALL-E 3', 'slug': 'openai-dalle3',
+        'description': 'โมเดล text-to-image ของ OpenAI รองรับภาพคุณภาพสูง HD',
+        'base_url': 'https://api.openai.com/v1/images/generations',
+        'model': 'dall-e-3', 'cost_per_gen': 0.04, 'icon': '🔷', 'sort_order': 1,
+        'docs_guide': '## OpenAI DALL-E 3\n\n### วิธีขอ API Key\n1. ไปที่ https://platform.openai.com/api-keys\n2. คลิก **Create new secret key**\n3. คัดลอก key มาใส่ในช่อง API Key\n\n### ราคา\n- Standard 1024×1024: **$0.040/ภาพ**\n- HD 1024×1024: **$0.080/ภาพ**\n- Wide/Tall 1024×1792: $0.080 / HD $0.120\n\n### หมายเหตุ\n- DALL-E 3 สร้างได้ **1 ภาพ** ต่อ request\n- รองรับ prompt revision อัตโนมัติ',
+    },
+    {
+        'name': 'OpenAI GPT-Image-1', 'slug': 'openai-gpt-image-1',
+        'description': 'โมเดลล่าสุดจาก OpenAI — เชี่ยวชาญ prompt ซับซ้อน, นับ token จริง',
+        'base_url': 'https://api.openai.com/v1/images/generations',
+        'model': 'gpt-image-1', 'cost_per_gen': 0.021, 'icon': '✨', 'sort_order': 2,
+        'docs_guide': '## OpenAI GPT-Image-1\n\n### วิธีขอ API Key\n1. ไปที่ https://platform.openai.com/api-keys\n2. คลิก **Create new secret key** (ใช้ key เดียวกับ DALL-E 3)\n3. ต้องมี **Tier 1** ขึ้นไปถึงจะใช้ gpt-image-1 ได้\n\n### ราคา\n- Input text: $5.00/1M tokens\n- Output: Low ~$0.011 | Medium ~$0.021 | High ~$0.042\n\n### หมายเหตุ\n- รองรับ multimodal input\n- คุณภาพสูงกว่า DALL-E 3 สำหรับ prompt ซับซ้อน\n- ระบบจะรายงาน **token จริง** จาก API response',
+    },
+    {
+        'name': 'Stability AI SD3.5', 'slug': 'stability-sd3',
+        'description': 'Stable Diffusion 3.5 Large — detail ดีเยี่ยม aspect ratio อิสระ',
+        'base_url': 'https://api.stability.ai/v2beta/stable-image/generate/sd3',
+        'model': 'sd3.5-large', 'cost_per_gen': 0.065, 'icon': '🎨', 'sort_order': 3,
+        'docs_guide': '## Stability AI SD3.5\n\n### วิธีขอ API Key\n1. สมัครที่ https://platform.stability.ai/\n2. ไปที่ **Account → API Keys → Create API Key**\n\n### ราคา (Credits)\n- SD3.5 Large: **6.5 credits/ภาพ**\n- SD3.5 Large Turbo: 4 credits\n- 1,000 credits ≈ $10\n\n### หมายเหตุ\n- รองรับ aspect ratio: 1:1, 16:9, 9:16, 4:3, 3:2, 21:9\n- ไม่รองรับ negative prompt (ใช้ SDXL แทน)',
+    },
+    {
+        'name': 'Stability AI SDXL', 'slug': 'stability-sdxl',
+        'description': 'Stable Diffusion XL 1024px — รองรับ negative prompt เต็มรูปแบบ',
+        'base_url': 'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image',
+        'model': 'stable-diffusion-xl-1024-v1-0', 'cost_per_gen': 0.002, 'icon': '🖼️', 'sort_order': 4,
+        'docs_guide': '## Stability AI SDXL\n\n### วิธีขอ API Key\n(ใช้ key เดียวกับ SD3.5)\n1. สมัครที่ https://platform.stability.ai/\n\n### ราคา\n- ~**0.2 credits/ภาพ** (ถูกมาก)\n- 1,000 credits ≈ $10\n\n### หมายเหตุ\n- รองรับ negative prompt\n- ขนาดที่รองรับ: 1024x1024, 1152x896, 896x1152, 1344x768, 768x1344',
+    },
+    {
+        'name': 'Ideogram v2', 'slug': 'ideogram-v2',
+        'description': 'เชี่ยวชาญการใส่ข้อความในภาพ — typography ที่ดีที่สุด',
+        'base_url': 'https://api.ideogram.ai/generate',
+        'model': 'V_2', 'cost_per_gen': 0.08, 'icon': '💬', 'sort_order': 5,
+        'docs_guide': '## Ideogram v2\n\n### วิธีขอ API Key\n1. ไปที่ https://ideogram.ai/api\n2. คลิก **Get API Key**\n\n### ราคา\n- V_2: **$0.08/ภาพ**\n- V_2_TURBO: $0.05/ภาพ\n- V_1: $0.06/ภาพ\n\n### จุดเด่น\n- **ใส่ข้อความในภาพได้แม่นยำ** (typography)\n- Magic prompt (auto-enhance)\n- รองรับ negative prompt',
+    },
+    {
+        'name': 'Flux 1.1 Pro (Replicate)', 'slug': 'flux-replicate',
+        'description': 'FLUX.1 [pro] โดย Black Forest Labs ผ่าน Replicate — คุณภาพ top tier',
+        'base_url': 'https://api.replicate.com/v1/models/black-forest-labs/flux-1.1-pro/predictions',
+        'model': 'flux-1.1-pro', 'cost_per_gen': 0.055, 'icon': '⚡', 'sort_order': 6,
+        'docs_guide': '## Flux 1.1 Pro via Replicate\n\n### วิธีขอ API Key\n1. สมัครที่ https://replicate.com/\n2. ไปที่ **Account Settings → API Tokens → Create token**\n\n### ราคา\n- Flux 1.1 Pro: **$0.055/ภาพ**\n- Flux 1.1 Pro Ultra: $0.06\n- Flux Schnell (เร็ว ถูก): $0.003\n\n### หมายเหตุ\n- ผ่าน Replicate เข้าถึงโมเดลได้หลายร้อยตัว\n- รองรับ custom size อิสระ\n- ใช้ async prediction (ระบบจะ poll อัตโนมัติ)',
+    },
+    {
+        'name': 'Leonardo AI', 'slug': 'leonardo-ai',
+        'description': 'Platform creator-friendly — โมเดลและ preset หลากหลาย',
+        'base_url': 'https://cloud.leonardo.ai/api/rest/v1/generations',
+        'model': 'b24e16ff-06e3-43eb-8d33-4416c2d75876', 'cost_per_gen': 0.012, 'icon': '🎭', 'sort_order': 7,
+        'docs_guide': '## Leonardo AI\n\n### วิธีขอ API Key\n1. สมัครที่ https://app.leonardo.ai/\n2. ไปที่ **User Settings → API Access → Create API key**\n\n### ราคา\n- ระบบ Token (credits)\n- ~150 tokens/ภาพ\n- Free plan: **150 tokens/วัน**\n\n### หมายเหตุ\n- มีโมเดลให้เลือกหลายสิบตัว\n- รองรับ ControlNet, img2img, inpainting\n- Model ID ที่ใช้: Leonardo Diffusion XL',
+    },
+    {
+        'name': 'Midjourney', 'slug': 'midjourney',
+        'description': 'โมเดล art style ระดับ top — ผ่าน third-party API wrapper',
+        'base_url': 'https://api.userapi.ai/midjourney/v2', 'model': 'midjourney-v6.1',
+        'cost_per_gen': 0.05, 'icon': '🌊', 'sort_order': 8,
+        'docs_guide': '## Midjourney\n\n### ⚠️ สถานะ\nMidjourney **ยังไม่มี Official API** ต้องใช้ผ่าน third-party wrapper\n\n### ทางเลือก Third-party API\n1. **UseAPI.net** (https://useapi.net/) — ผ่าน Discord bot\n2. **PiAPI.ai** (https://piapi.ai/) — wrapper ยอดนิยม\n3. **GoAPI.ai** (https://goapi.ai/)\n\n### วิธีใช้ UseAPI.net\n1. สมัครที่ https://app.useapi.net/\n2. เชื่อม Discord account\n3. ต้องมี **Midjourney subscription** แยกต่างหาก\n4. สร้าง API key → ใส่ในช่องด้านบน\n\n### หมายเหตุ\n- ต้องตั้งค่า base_url ให้ตรงกับ provider ที่เลือก\n- ราคาขึ้นอยู่กับ provider + Midjourney plan',
+    },
+    {
+        'name': 'Adobe Firefly', 'slug': 'adobe-firefly',
+        'description': 'AI สร้างภาพจาก Adobe — ปลอดภัยสำหรับงานเชิงพาณิชย์',
+        'base_url': 'https://firefly-api.adobe.io/v3/images/generate',
+        'model': 'firefly-v3', 'cost_per_gen': 0.01, 'icon': '🔥', 'sort_order': 9,
+        'docs_guide': '## Adobe Firefly API\n\n### วิธีขอ Access\n1. ไปที่ https://developer.adobe.com/firefly-api/\n2. คลิก **Get started** → สร้าง Adobe Developer Account\n3. สร้าง Project ใน Adobe Developer Console\n4. เพิ่ม **Firefly API** เข้า project\n5. สร้าง **OAuth Server-to-Server** credentials\n\n### การ Authenticate\n- ต้องแลก Client ID + Client Secret → Access Token\n- ใส่ Client ID ในช่อง API Key\n- ใส่ Client Secret ใน Extra Config: `{"client_secret": "..."}`\n\n### ราคา\n- Free: 25 generative credits/เดือน\n- credits แยกจาก Creative Cloud\n\n### จุดเด่น\n- **ปลอดภัย 100% สำหรับงานการค้า** (trained on licensed content)',
+    },
+    {
+        'name': 'Google Imagen 3', 'slug': 'google-imagen3',
+        'description': 'โมเดลจาก Google DeepMind — ผ่าน Vertex AI หรือ Gemini API',
+        'base_url': 'https://us-central1-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/us-central1/publishers/google/models/imagegeneration@006:predict',
+        'model': 'imagen-3.0-generate-001', 'cost_per_gen': 0.02, 'icon': '🌐', 'sort_order': 10,
+        'docs_guide': '## Google Imagen 3\n\n### ทางเลือก 1: Gemini API (ง่ายกว่า)\n1. ไปที่ https://aistudio.google.com/apikey\n2. คลิก **Create API key**\n3. ใส่ key ในช่อง API Key\n4. ตั้ง base_url เป็น: `https://generativelanguage.googleapis.com/v1beta`\n\n### ทางเลือก 2: Vertex AI\n1. มี Google Cloud Project พร้อม billing\n2. เปิด **Vertex AI API**\n3. สร้าง **Service Account** ที่มีสิทธิ์ `Vertex AI User`\n4. ดาวน์โหลด JSON key file\n5. ใส่ JSON content ใน Extra Config: `{"service_account_json": {...}}`\n\n### ราคา\n- $0.02/ภาพ (1024×1024)\n\n### หมายเหตุ\n- ต้องขอ access Imagen 3 ที่ https://cloud.google.com/vertex-ai/generative-ai/docs/image/overview',
+    },
+]
+
+def _seed_platforms():
+    """Seed DEFAULT_PLATFORMS if ai_platforms table is empty"""
+    with get_db() as conn:
+        count = conn.execute('SELECT COUNT(*) FROM ai_platforms').fetchone()[0]
+        if count == 0:
+            now = datetime.now(timezone.utc).isoformat()
+            for p in DEFAULT_PLATFORMS:
+                conn.execute(
+                    '''INSERT OR IGNORE INTO ai_platforms
+                       (name, slug, description, api_key, base_url, model,
+                        is_enabled, is_visible, sort_order, cost_per_gen,
+                        icon, docs_guide, extra_config, created_at)
+                       VALUES (?,?,?,?,?,?,0,1,?,?,?,?,?,?)''',
+                    (p['name'], p['slug'], p.get('description',''),
+                     '', p.get('base_url',''), p.get('model',''),
+                     p.get('sort_order', 99),
+                     float(p.get('cost_per_gen', 0)),
+                     p.get('icon','🤖'), p.get('docs_guide',''), '{}', now)
+                )
 
 
 # ─── Database ─────────────────────────────────────────────────────────────────
@@ -86,6 +182,40 @@ def init_db():
                 success    INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS ai_platforms (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT NOT NULL,
+                slug        TEXT UNIQUE NOT NULL,
+                description TEXT DEFAULT '',
+                api_key     TEXT DEFAULT '',
+                base_url    TEXT DEFAULT '',
+                model       TEXT DEFAULT '',
+                is_enabled  INTEGER DEFAULT 0,
+                is_visible  INTEGER DEFAULT 1,
+                sort_order  INTEGER DEFAULT 0,
+                cost_per_gen REAL DEFAULT 0.0,
+                icon        TEXT DEFAULT '🤖',
+                docs_guide  TEXT DEFAULT '',
+                extra_config TEXT DEFAULT '{}',
+                created_at  TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS prompt_history (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id         INTEGER NOT NULL,
+                platform_slug   TEXT NOT NULL,
+                platform_name   TEXT NOT NULL,
+                prompt_text     TEXT NOT NULL,
+                negative_prompt TEXT DEFAULT '',
+                model           TEXT DEFAULT '',
+                result_image_path TEXT DEFAULT '',
+                status          TEXT DEFAULT 'pending',
+                error_msg       TEXT DEFAULT '',
+                gen_count       INTEGER DEFAULT 1,
+                tokens_used     INTEGER DEFAULT 0,
+                cost_usd        REAL DEFAULT 0.0,
+                created_at      TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
         ''')
         # migrate existing users table (add columns if missing)
         cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
@@ -100,6 +230,7 @@ def init_db():
 
     _ensure_super_admin()
     _seed_categories()
+    _seed_platforms()
 
 
 def _seed_categories():
@@ -253,6 +384,237 @@ def log_login(user_id, username, success: bool):
 def random_password(length=12) -> str:
     chars = string.ascii_letters + string.digits + '!@#$'
     return ''.join(random.choices(chars, k=length))
+
+
+# ─── AI Platform Helpers ──────────────────────────────────────────────────────
+
+SIZE_MAP = {
+    '1:1':  {'openai': '1024x1024', 'sd3_ar': '1:1',   'sdxl': '1024x1024',
+             'ideogram': 'RESOLUTION_1024_1024', 'rw': 1024, 'rh': 1024},
+    '16:9': {'openai': '1792x1024', 'sd3_ar': '16:9',  'sdxl': '1344x768',
+             'ideogram': 'RESOLUTION_1344_768',  'rw': 1344, 'rh': 768},
+    '9:16': {'openai': '1024x1792', 'sd3_ar': '9:16',  'sdxl': '768x1344',
+             'ideogram': 'RESOLUTION_768_1344',  'rw': 768,  'rh': 1344},
+    '4:3':  {'openai': '1792x1024', 'sd3_ar': '4:3',   'sdxl': '1152x896',
+             'ideogram': 'RESOLUTION_1152_896',  'rw': 1152, 'rh': 896},
+}
+
+def _estimate_tokens(text: str) -> int:
+    return max(1, int(len(text.split()) * 1.33))
+
+def _http_post_json(url, payload, headers):
+    body = json.dumps(payload).encode('utf-8')
+    req_headers = {'Content-Type': 'application/json', **headers}
+    req = urllib.request.Request(url, data=body, headers=req_headers, method='POST')
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        err = e.read().decode('utf-8', errors='replace')
+        try:
+            j = json.loads(err)
+            msg = j.get('error', err)
+            if isinstance(msg, dict):
+                msg = msg.get('message', err)
+        except Exception:
+            msg = err[:300]
+        raise Exception(f'HTTP {e.code}: {msg}')
+
+def _http_post_multipart(url, fields, headers):
+    boundary = uuid.uuid4().hex
+    body = b''
+    for name, value in fields.items():
+        body += (f'--{boundary}\r\nContent-Disposition: form-data; '
+                 f'name="{name}"\r\n\r\n{value}\r\n').encode('utf-8')
+    body += f'--{boundary}--\r\n'.encode('utf-8')
+    req_headers = {'Content-Type': f'multipart/form-data; boundary={boundary}', **headers}
+    req = urllib.request.Request(url, data=body, headers=req_headers, method='POST')
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as e:
+        raise Exception(f'HTTP {e.code}: {e.read().decode("utf-8", errors="replace")[:300]}')
+
+def _save_b64_image(b64_data: str) -> str:
+    import base64 as _b64
+    filename = f'{uuid.uuid4()}.webp'
+    save_path = UPLOAD_FOLDER / filename
+    img_bytes = _b64.b64decode(b64_data)
+    img = Image.open(io.BytesIO(img_bytes))
+    if img.mode in ('RGBA', 'P'):
+        bg = Image.new('RGB', img.size, (255, 255, 255))
+        if img.mode == 'P':
+            img = img.convert('RGBA')
+        bg.paste(img, mask=img.split()[3] if img.mode == 'RGBA' else None)
+        img = bg
+    elif img.mode != 'RGB':
+        img = img.convert('RGB')
+    img.save(save_path, 'WEBP', quality=85)
+    return filename
+
+def _save_url_image(image_url: str) -> str:
+    filename = f'{uuid.uuid4()}.webp'
+    save_path = UPLOAD_FOLDER / filename
+    req = urllib.request.Request(image_url, headers={'User-Agent': 'PromptGallery/1.0'})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        img_bytes = resp.read()
+    img = Image.open(io.BytesIO(img_bytes))
+    if img.mode in ('RGBA', 'P'):
+        bg = Image.new('RGB', img.size, (255, 255, 255))
+        if img.mode == 'P':
+            img = img.convert('RGBA')
+        bg.paste(img, mask=img.split()[3] if img.mode == 'RGBA' else None)
+        img = bg
+    elif img.mode != 'RGB':
+        img = img.convert('RGB')
+    img.save(save_path, 'WEBP', quality=85)
+    return filename
+
+def _save_raw_image(raw_bytes: bytes) -> str:
+    filename = f'{uuid.uuid4()}.webp'
+    save_path = UPLOAD_FOLDER / filename
+    img = Image.open(io.BytesIO(raw_bytes))
+    if img.mode not in ('RGB', 'RGBA'):
+        img = img.convert('RGB')
+    if img.mode == 'RGBA':
+        bg = Image.new('RGB', img.size, (255, 255, 255))
+        bg.paste(img, mask=img.split()[3])
+        img = bg
+    img.save(save_path, 'WEBP', quality=85)
+    return filename
+
+def _gen_openai(api_key, model, prompt, size_key, quality):
+    sm = SIZE_MAP.get(size_key, SIZE_MAP['1:1'])
+    data = {'model': model, 'prompt': prompt, 'n': 1, 'size': sm['openai']}
+    if model == 'dall-e-3':
+        data['quality'] = 'hd' if quality == 'high' else 'standard'
+        data['response_format'] = 'b64_json'
+        cost = (0.12 if sm['openai'] != '1024x1024' else 0.08) if quality == 'high' else \
+               (0.08 if sm['openai'] != '1024x1024' else 0.04)
+        tokens = 0
+    else:
+        q = {'standard': 'medium', 'high': 'high', 'low': 'low'}.get(quality, 'medium')
+        data['quality'] = q
+        cost = {'low': 0.011, 'medium': 0.021, 'high': 0.042}.get(q, 0.021)
+        tokens = 0
+    result = _http_post_json(
+        'https://api.openai.com/v1/images/generations',
+        data, {'Authorization': f'Bearer {api_key}'}
+    )
+    if 'usage' in result:
+        u = result['usage']
+        tokens = u.get('input_tokens', 0) + u.get('output_tokens', 0)
+    item = result['data'][0]
+    b64 = item.get('b64_json')
+    filename = _save_b64_image(b64) if b64 else _save_url_image(item['url'])
+    return filename, cost, tokens
+
+def _gen_stability_sd3(api_key, prompt, neg_prompt, size_key):
+    sm = SIZE_MAP.get(size_key, SIZE_MAP['1:1'])
+    fields = {'prompt': prompt, 'aspect_ratio': sm['sd3_ar'],
+              'output_format': 'webp', 'model': 'sd3.5-large'}
+    if neg_prompt:
+        fields['negative_prompt'] = neg_prompt
+    raw = _http_post_multipart(
+        'https://api.stability.ai/v2beta/stable-image/generate/sd3',
+        fields, {'authorization': f'Bearer {api_key}', 'accept': 'image/*'}
+    )
+    return _save_raw_image(raw), 0.065, 0
+
+def _gen_stability_sdxl(api_key, prompt, neg_prompt, size_key):
+    sm = SIZE_MAP.get(size_key, SIZE_MAP['1:1'])
+    w, h = map(int, sm['sdxl'].split('x'))
+    payload = {
+        'text_prompts': [{'text': prompt, 'weight': 1.0}],
+        'cfg_scale': 7, 'height': h, 'width': w, 'samples': 1, 'steps': 30,
+    }
+    if neg_prompt:
+        payload['text_prompts'].append({'text': neg_prompt, 'weight': -1.0})
+    result = _http_post_json(
+        'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image',
+        payload, {'Authorization': f'Bearer {api_key}', 'Accept': 'application/json'}
+    )
+    return _save_b64_image(result['artifacts'][0]['base64']), 0.002, 0
+
+def _gen_ideogram(api_key, prompt, neg_prompt, size_key):
+    sm = SIZE_MAP.get(size_key, SIZE_MAP['1:1'])
+    req_body = {'image_request': {
+        'prompt': prompt, 'model': 'V_2',
+        'resolution': sm['ideogram'], 'magic_prompt_option': 'OFF',
+    }}
+    if neg_prompt:
+        req_body['image_request']['negative_prompt'] = neg_prompt
+    result = _http_post_json('https://api.ideogram.ai/generate',
+                             req_body, {'Api-Key': api_key})
+    return _save_url_image(result['data'][0]['url']), 0.08, 0
+
+def _gen_flux_replicate(api_key, prompt, size_key):
+    sm = SIZE_MAP.get(size_key, SIZE_MAP['1:1'])
+    payload = {'input': {'prompt': prompt, 'width': sm['rw'], 'height': sm['rh'],
+                         'output_format': 'webp', 'output_quality': 85}}
+    result = _http_post_json(
+        'https://api.replicate.com/v1/models/black-forest-labs/flux-1.1-pro/predictions',
+        payload, {'Authorization': f'Bearer {api_key}', 'Prefer': 'wait=60'}
+    )
+    def _get_output(r):
+        out = r.get('output')
+        return out[0] if isinstance(out, list) else out
+    if result.get('status') == 'succeeded':
+        return _save_url_image(_get_output(result)), 0.055, 0
+    poll_url = result['urls']['get']
+    for _ in range(30):
+        time.sleep(3)
+        req2 = urllib.request.Request(poll_url, headers={'Authorization': f'Bearer {api_key}'})
+        with urllib.request.urlopen(req2, timeout=30) as resp:
+            result = json.loads(resp.read())
+        if result.get('status') == 'succeeded':
+            return _save_url_image(_get_output(result)), 0.055, 0
+        if result.get('status') == 'failed':
+            raise Exception(result.get('error', 'Flux generation failed'))
+    raise Exception('Flux generation timed out (90s)')
+
+def _gen_leonardo(api_key, prompt, neg_prompt, size_key):
+    sm = SIZE_MAP.get(size_key, SIZE_MAP['1:1'])
+    payload = {
+        'prompt': prompt,
+        'modelId': 'b24e16ff-06e3-43eb-8d33-4416c2d75876',
+        'width': sm['rw'], 'height': sm['rh'], 'num_images': 1,
+    }
+    if neg_prompt:
+        payload['negative_prompt'] = neg_prompt
+    result = _http_post_json('https://cloud.leonardo.ai/api/rest/v1/generations',
+                             payload, {'authorization': f'Bearer {api_key}'})
+    gen_id = result['sdGenerationJob']['generationId']
+    for _ in range(30):
+        time.sleep(3)
+        req = urllib.request.Request(
+            f'https://cloud.leonardo.ai/api/rest/v1/generations/{gen_id}',
+            headers={'authorization': f'Bearer {api_key}'}
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            poll = json.loads(resp.read())
+        gen = poll.get('generations_by_pk', {})
+        if gen.get('status') == 'COMPLETE':
+            imgs = gen.get('generated_images', [])
+            if imgs:
+                return _save_url_image(imgs[0]['url']), 0.012, 0
+            raise Exception('Leonardo: no image in response')
+        if gen.get('status') == 'FAILED':
+            raise Exception('Leonardo generation failed')
+    raise Exception('Leonardo generation timed out (90s)')
+
+def _call_platform_api(platform, prompt, neg_prompt, size_key, quality):
+    """Route to correct generator. Returns (filename, cost_usd, tokens)."""
+    s = platform['slug']
+    k = platform['api_key']
+    if s == 'openai-dalle3':        return _gen_openai(k, 'dall-e-3', prompt, size_key, quality)
+    if s == 'openai-gpt-image-1':   return _gen_openai(k, 'gpt-image-1', prompt, size_key, quality)
+    if s == 'stability-sd3':        return _gen_stability_sd3(k, prompt, neg_prompt, size_key)
+    if s == 'stability-sdxl':       return _gen_stability_sdxl(k, prompt, neg_prompt, size_key)
+    if s == 'ideogram-v2':          return _gen_ideogram(k, prompt, neg_prompt, size_key)
+    if s == 'flux-replicate':       return _gen_flux_replicate(k, prompt, size_key)
+    if s == 'leonardo-ai':          return _gen_leonardo(k, prompt, neg_prompt, size_key)
+    raise Exception(f'Platform "{s}" ยังไม่รองรับการ generate อัตโนมัติ — ใช้งานบน platform นั้นโดยตรง')
 
 
 # ─── Auth Routes ──────────────────────────────────────────────────────────────
@@ -763,6 +1125,269 @@ def admin_reorder_categories():
     return jsonify({'ok': True})
 
 
+# ─── Public Platform Routes ───────────────────────────────────────────────────
+
+@app.route('/api/platforms', methods=['GET'])
+def get_platforms():
+    show_all = request.args.get('all', '0') == '1'
+    with get_db() as conn:
+        q = ('SELECT id,name,slug,description,icon,is_enabled,is_visible,sort_order,model,cost_per_gen '
+             'FROM ai_platforms WHERE is_visible=1')
+        if not show_all:
+            q += ' AND is_enabled=1'
+        q += ' ORDER BY sort_order, name'
+        rows = conn.execute(q).fetchall()
+    return jsonify([row_to_dict(r) for r in rows])
+
+
+# ─── Prompt Lab Routes ────────────────────────────────────────────────────────
+
+@app.route('/api/lab/generate', methods=['POST'])
+@require_auth
+def lab_generate():
+    data           = request.get_json() or {}
+    prompt_text    = (data.get('prompt') or '').strip()
+    slugs          = data.get('platforms', [])
+    neg_prompt     = (data.get('negative_prompt') or '').strip()
+    size_key       = data.get('size', '1:1')
+    quality        = data.get('quality', 'standard')
+
+    if not prompt_text:
+        return jsonify({'error': 'กรุณาใส่ prompt'}), 400
+    if not slugs:
+        return jsonify({'error': 'กรุณาเลือก AI platform อย่างน้อย 1 ตัว'}), 400
+    if len(slugs) > 5:
+        return jsonify({'error': 'เลือกได้สูงสุด 5 platform ต่อครั้ง'}), 400
+
+    user    = request.current_user
+    now     = datetime.now(timezone.utc).isoformat()
+    results = []
+
+    for slug in slugs:
+        with get_db() as conn:
+            platform = conn.execute(
+                'SELECT * FROM ai_platforms WHERE slug=? AND is_visible=1', (slug,)
+            ).fetchone()
+
+        if not platform:
+            results.append({'slug': slug, 'status': 'error', 'error': 'ไม่พบ platform'})
+            continue
+
+        tokens = _estimate_tokens(prompt_text + ' ' + neg_prompt)
+
+        if not platform['api_key']:
+            with get_db() as conn:
+                conn.execute(
+                    '''INSERT INTO prompt_history
+                       (user_id,platform_slug,platform_name,prompt_text,negative_prompt,
+                        model,status,error_msg,gen_count,tokens_used,cost_usd,created_at)
+                       VALUES(?,?,?,?,?,?,'failed',?,1,0,0,?)''',
+                    (user['sub'], slug, platform['name'], prompt_text, neg_prompt,
+                     platform['model'], 'ยังไม่ได้ตั้งค่า API Key', now)
+                )
+            results.append({'slug': slug, 'name': platform['name'],
+                            'status': 'error', 'error': f'"{platform["name"]}" ยังไม่ได้ตั้งค่า API Key'})
+            continue
+
+        try:
+            filename, cost, api_tokens = _call_platform_api(
+                dict(platform), prompt_text, neg_prompt, size_key, quality
+            )
+            if api_tokens > 0:
+                tokens = api_tokens
+            with get_db() as conn:
+                conn.execute(
+                    '''INSERT INTO prompt_history
+                       (user_id,platform_slug,platform_name,prompt_text,negative_prompt,
+                        model,result_image_path,status,gen_count,tokens_used,cost_usd,created_at)
+                       VALUES(?,?,?,?,?,?,?,'success',1,?,?,?)''',
+                    (user['sub'], slug, platform['name'], prompt_text, neg_prompt,
+                     platform['model'], filename, tokens, cost, now)
+                )
+            results.append({
+                'slug': slug, 'name': platform['name'], 'icon': platform['icon'],
+                'status': 'success',
+                'image_path': f'/uploads/{filename}',
+                'tokens_used': tokens, 'cost_usd': cost
+            })
+        except Exception as exc:
+            with get_db() as conn:
+                conn.execute(
+                    '''INSERT INTO prompt_history
+                       (user_id,platform_slug,platform_name,prompt_text,negative_prompt,
+                        model,status,error_msg,gen_count,tokens_used,cost_usd,created_at)
+                       VALUES(?,?,?,?,?,?,'failed',?,1,?,0,?)''',
+                    (user['sub'], slug, platform['name'], prompt_text, neg_prompt,
+                     platform['model'], str(exc)[:500], tokens, now)
+                )
+            results.append({'slug': slug, 'name': platform['name'], 'icon': platform['icon'],
+                            'status': 'error', 'error': str(exc)[:300]})
+
+    return jsonify({'results': results})
+
+
+@app.route('/api/lab/history', methods=['GET'])
+@require_auth
+def lab_history():
+    user     = request.current_user
+    page     = max(1, int(request.args.get('page', 1)))
+    per_page = 20
+    platform = request.args.get('platform', '')
+
+    query  = 'SELECT * FROM prompt_history WHERE user_id=?'
+    params = [user['sub']]
+    if platform:
+        query += ' AND platform_slug=?'
+        params.append(platform)
+    count_q = query.replace('SELECT *', 'SELECT COUNT(*)')
+    query  += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
+
+    with get_db() as conn:
+        total = conn.execute(count_q, params).fetchone()[0]
+        rows  = conn.execute(query, params + [per_page, (page-1)*per_page]).fetchall()
+
+    return jsonify({
+        'history': [row_to_dict(r) for r in rows],
+        'total': total, 'page': page,
+        'pages': (total + per_page - 1) // per_page
+    })
+
+
+@app.route('/api/lab/stats', methods=['GET'])
+@require_auth
+def lab_stats():
+    user = request.current_user
+    with get_db() as conn:
+        rows = conn.execute('''
+            SELECT platform_slug, platform_name,
+                   COUNT(*) AS total_gens,
+                   SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) AS success_gens,
+                   SUM(tokens_used) AS total_tokens,
+                   ROUND(SUM(cost_usd),4) AS total_cost,
+                   MAX(created_at) AS last_used
+            FROM prompt_history WHERE user_id=?
+            GROUP BY platform_slug ORDER BY total_gens DESC
+        ''', (user['sub'],)).fetchall()
+    return jsonify([row_to_dict(r) for r in rows])
+
+
+# ─── Admin Platform Routes ────────────────────────────────────────────────────
+
+@app.route('/api/admin/platforms', methods=['GET'])
+@require_admin
+def admin_list_platforms():
+    with get_db() as conn:
+        rows = conn.execute(
+            'SELECT * FROM ai_platforms ORDER BY sort_order, name'
+        ).fetchall()
+    result = []
+    for r in rows:
+        d = row_to_dict(r)
+        key = d.get('api_key', '')
+        d['api_key_masked'] = ('••••••' + key[-6:]) if len(key) > 6 else ('••' if key else '')
+        d.pop('api_key', None)
+        result.append(d)
+    return jsonify(result)
+
+
+@app.route('/api/admin/platforms', methods=['POST'])
+@require_admin
+def admin_create_platform():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    slug = (data.get('slug') or '').strip().lower().replace(' ', '-')
+    if not name or not slug:
+        return jsonify({'error': 'กรุณากรอก name และ slug'}), 400
+    now = datetime.now(timezone.utc).isoformat()
+    with get_db() as conn:
+        mo = conn.execute('SELECT COALESCE(MAX(sort_order),0) FROM ai_platforms').fetchone()[0]
+        try:
+            cur = conn.execute(
+                '''INSERT INTO ai_platforms
+                   (name,slug,description,api_key,base_url,model,is_enabled,is_visible,
+                    sort_order,cost_per_gen,icon,docs_guide,extra_config,created_at)
+                   VALUES(?,?,?,?,?,?,0,1,?,?,?,?,?,?)''',
+                (name, slug, data.get('description',''), data.get('api_key',''),
+                 data.get('base_url',''), data.get('model',''), mo+1,
+                 float(data.get('cost_per_gen',0)), data.get('icon','🤖'),
+                 data.get('docs_guide',''), data.get('extra_config','{}'), now)
+            )
+            pid = cur.lastrowid
+        except sqlite3.IntegrityError:
+            return jsonify({'error': f'Slug "{slug}" ซ้ำกับ platform อื่น'}), 409
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM ai_platforms WHERE id=?', (pid,)).fetchone()
+    d = row_to_dict(row)
+    d.pop('api_key', None)
+    return jsonify(d), 201
+
+
+@app.route('/api/admin/platforms/<int:pid>', methods=['PATCH'])
+@require_admin
+def admin_update_platform(pid):
+    data = request.get_json() or {}
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM ai_platforms WHERE id=?', (pid,)).fetchone()
+        if not row:
+            return jsonify({'error': 'ไม่พบ platform'}), 404
+        fields = {}
+        for k in ('name', 'description', 'base_url', 'model', 'icon',
+                  'docs_guide', 'extra_config'):
+            if k in data:
+                fields[k] = data[k]
+        if 'api_key' in data:
+            fields['api_key']    = data['api_key']
+            fields['is_enabled'] = 1 if data['api_key'].strip() else 0
+        if 'is_visible'   in data: fields['is_visible']   = int(data['is_visible'])
+        if 'cost_per_gen' in data: fields['cost_per_gen'] = float(data['cost_per_gen'])
+        if fields:
+            set_cl = ', '.join(f'{k}=?' for k in fields)
+            conn.execute(f'UPDATE ai_platforms SET {set_cl} WHERE id=?',
+                         list(fields.values()) + [pid])
+    return jsonify({'ok': True})
+
+
+@app.route('/api/admin/platforms/<int:pid>/toggle-visible', methods=['PATCH'])
+@require_admin
+def admin_toggle_platform_visible(pid):
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM ai_platforms WHERE id=?', (pid,)).fetchone()
+        if not row:
+            return jsonify({'error': 'ไม่พบ platform'}), 404
+        ns = 0 if row['is_visible'] else 1
+        conn.execute('UPDATE ai_platforms SET is_visible=? WHERE id=?', (ns, pid))
+    return jsonify({'ok': True, 'is_visible': bool(ns)})
+
+
+@app.route('/api/admin/platforms/<int:pid>', methods=['DELETE'])
+@require_admin
+def admin_delete_platform(pid):
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM ai_platforms WHERE id=?', (pid,)).fetchone()
+        if not row:
+            return jsonify({'error': 'ไม่พบ platform'}), 404
+        conn.execute('DELETE FROM ai_platforms WHERE id=?', (pid,))
+    return jsonify({'ok': True})
+
+
+@app.route('/api/admin/lab/stats', methods=['GET'])
+@require_admin
+def admin_lab_stats():
+    with get_db() as conn:
+        rows = conn.execute('''
+            SELECT platform_slug, platform_name,
+                   COUNT(*) AS total_gens,
+                   SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) AS success_gens,
+                   SUM(tokens_used) AS total_tokens,
+                   ROUND(SUM(cost_usd),4) AS total_cost,
+                   COUNT(DISTINCT user_id) AS unique_users,
+                   MAX(created_at) AS last_used
+            FROM prompt_history
+            GROUP BY platform_slug ORDER BY total_gens DESC
+        ''').fetchall()
+    return jsonify([row_to_dict(r) for r in rows])
+
+
 # ─── Static Routes ────────────────────────────────────────────────────────────
 
 @app.route('/')
@@ -772,6 +1397,10 @@ def index():
 @app.route('/admin')
 def admin_page():
     return send_from_directory(str(BASE_DIR / 'public'), 'admin.html')
+
+@app.route('/prompt-lab')
+def prompt_lab_page():
+    return send_from_directory(str(BASE_DIR / 'public'), 'prompt-lab.html')
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):

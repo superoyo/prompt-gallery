@@ -46,10 +46,11 @@ function navigateTo(page) {
   document.getElementById(`page-${page}`)?.classList.add('active');
 
   if (page === 'dashboard') loadDashboard();
-  else if (page === 'users')   loadUsers(1);
-  else if (page === 'prompts') loadPrompts(1);
+  else if (page === 'users')     loadUsers(1);
+  else if (page === 'prompts')   loadPrompts(1);
   else if (page === 'categories') loadCategories();
-  else if (page === 'logs')    loadLogs(1);
+  else if (page === 'platforms') loadPlatforms();
+  else if (page === 'logs')      loadLogs(1);
 }
 
 /* ── Dashboard ──────────────────────────────────────────────────── */
@@ -371,6 +372,274 @@ async function moveCat(id, currentOrder, dir) {
 
     await api('POST', '/api/admin/categories/reorder', reorder);
     loadCategories();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+/* ── AI Platforms ────────────────────────────────────────────────── */
+let _platformEditId = null;
+let _apikeyPlatformId = null;
+let _platformUsageMap = {};
+
+async function loadPlatforms() {
+  try {
+    const [platforms, usage] = await Promise.all([
+      api('GET', '/api/admin/platforms'),
+      api('GET', '/api/admin/lab/stats').catch(() => [])
+    ]);
+    // Build usage map by slug
+    _platformUsageMap = {};
+    (Array.isArray(usage) ? usage : []).forEach(u => {
+      _platformUsageMap[u.platform_slug] = u;
+    });
+    renderPlatformsTable(platforms);
+    renderPlatformStats(usage);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function renderPlatformStats(usage) {
+  const el = document.getElementById('platformStatsGrid');
+  if (!el) return;
+  const totalGens  = usage.reduce((s, u) => s + (u.total_gens  || 0), 0);
+  const totalCost  = usage.reduce((s, u) => s + (u.total_cost  || 0), 0);
+  const totalTokens = usage.reduce((s, u) => s + (u.total_tokens || 0), 0);
+  const platforms  = document.querySelectorAll('#platformTbody tr').length;
+  el.innerHTML = `
+    <div class="stat-card"><div class="stat-icon blue">🤖</div><div class="stat-num" id="pfStatCount">-</div><div class="stat-label">Platform ทั้งหมด</div></div>
+    <div class="stat-card"><div class="stat-icon green">🎨</div><div class="stat-num">${totalGens.toLocaleString()}</div><div class="stat-label">Generations ทั้งหมด</div></div>
+    <div class="stat-card"><div class="stat-icon blue">🔢</div><div class="stat-num">${totalTokens.toLocaleString()}</div><div class="stat-label">Tokens ที่ใช้</div></div>
+    <div class="stat-card"><div class="stat-icon orange">💰</div><div class="stat-num">$${totalCost.toFixed(2)}</div><div class="stat-label">ต้นทุนรวม (USD)</div></div>
+  `;
+}
+
+function renderPlatformsTable(platforms) {
+  // update platform count stat
+  setTimeout(() => {
+    const el = document.getElementById('pfStatCount');
+    if (el) el.textContent = platforms.length;
+  }, 50);
+
+  const tbody = document.getElementById('platformTbody');
+  if (!platforms.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:40px">ยังไม่มี Platform</td></tr>';
+    return;
+  }
+  tbody.innerHTML = platforms.map(p => {
+    const u = _platformUsageMap[p.slug] || {};
+    const enabled = p.is_enabled;
+    return `
+    <tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.4rem">${esc(p.icon||'🤖')}</span>
+          <div>
+            <div style="font-weight:600">${esc(p.name)}</div>
+            <div style="font-size:.75rem;color:var(--text-3)">${esc(p.description||'').slice(0,50)}</div>
+          </div>
+        </div>
+      </td>
+      <td><code style="font-size:.75rem;background:var(--bg-3);padding:2px 6px;border-radius:4px">${esc(p.slug)}</code></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="badge ${enabled ? 'badge-success' : 'badge-disabled'}">
+            ${enabled ? '✓ ตั้งค่าแล้ว' : '✗ ยังไม่มี Key'}
+          </span>
+          ${p.api_key_masked ? `<code style="font-size:.72rem;color:var(--text-3)">${esc(p.api_key_masked)}</code>` : ''}
+        </div>
+      </td>
+      <td style="font-size:.85rem;color:var(--text-2)">$${(p.cost_per_gen||0).toFixed(3)}</td>
+      <td style="font-size:.82rem">
+        ${u.total_gens ? `
+          <span style="font-weight:600">${u.total_gens}</span>
+          <span style="color:var(--text-3);font-size:.75rem"> / ${u.success_gens||0} ✓</span>
+          <div style="font-size:.72rem;color:var(--text-3)">$${(u.total_cost||0).toFixed(3)} | ${(u.total_tokens||0).toLocaleString()} tokens</div>
+        ` : '<span style="color:var(--text-3);font-size:.8rem">-</span>'}
+      </td>
+      <td>
+        <label class="toggle-switch">
+          <input type="checkbox" ${p.is_visible ? 'checked' : ''} onchange="togglePlatformVisible(${p.id}, this)" />
+          <div class="toggle-track"></div>
+          <span class="toggle-label">${p.is_visible ? 'แสดง' : 'ซ่อน'}</span>
+        </label>
+      </td>
+      <td>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn-action btn-key" onclick="openApikeyPanel(${p.id}, '${esc(p.name)}')">🔑 API Key</button>
+          <button class="btn-action btn-docs" onclick="showDocs(${p.id})">📖 คู่มือ</button>
+          <button class="btn-action btn-edit" onclick="openEditPlatformForm(${p.id})">✏️</button>
+          <button class="btn-action btn-del" onclick="deletePlatform(${p.id}, '${esc(p.name)}')">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+/* Add / Edit Platform Form */
+function openAddPlatformForm() {
+  _platformEditId = null;
+  document.getElementById('platformFormTitle').textContent = 'เพิ่ม Platform ใหม่';
+  document.getElementById('pfName').value  = '';
+  document.getElementById('pfSlug').value  = '';
+  document.getElementById('pfIcon').value  = '🤖';
+  document.getElementById('pfCost').value  = '0.04';
+  document.getElementById('pfDesc').value  = '';
+  document.getElementById('pfFormError').textContent = '';
+  document.getElementById('platformFormCard').style.display = 'block';
+  // Auto-generate slug from name
+  document.getElementById('pfName').oninput = () => {
+    if (!_platformEditId) {
+      document.getElementById('pfSlug').value =
+        document.getElementById('pfName').value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    }
+  };
+  document.getElementById('pfName').focus();
+}
+
+async function openEditPlatformForm(id) {
+  try {
+    const platforms = await api('GET', '/api/admin/platforms');
+    const p = platforms.find(pl => pl.id === id);
+    if (!p) return;
+    _platformEditId = id;
+    document.getElementById('platformFormTitle').textContent = 'แก้ไข Platform';
+    document.getElementById('pfName').value = p.name;
+    document.getElementById('pfSlug').value = p.slug;
+    document.getElementById('pfIcon').value = p.icon || '🤖';
+    document.getElementById('pfCost').value = p.cost_per_gen || 0;
+    document.getElementById('pfDesc').value = p.description || '';
+    document.getElementById('pfFormError').textContent = '';
+    document.getElementById('platformFormCard').style.display = 'block';
+    document.getElementById('pfName').oninput = null;
+    document.getElementById('pfName').focus();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function closePlatformForm() {
+  document.getElementById('platformFormCard').style.display = 'none';
+  _platformEditId = null;
+}
+
+async function savePlatformForm() {
+  const errEl = document.getElementById('pfFormError');
+  errEl.textContent = '';
+  const name = document.getElementById('pfName').value.trim();
+  const slug = document.getElementById('pfSlug').value.trim();
+  if (!name || !slug) { errEl.textContent = 'กรุณากรอก Name และ Slug'; return; }
+  const body = {
+    name, slug,
+    icon: document.getElementById('pfIcon').value.trim() || '🤖',
+    cost_per_gen: parseFloat(document.getElementById('pfCost').value) || 0,
+    description: document.getElementById('pfDesc').value.trim(),
+  };
+  try {
+    if (_platformEditId) {
+      await api('PATCH', `/api/admin/platforms/${_platformEditId}`, body);
+      toast('แก้ไข Platform สำเร็จ', 'success');
+    } else {
+      await api('POST', '/api/admin/platforms', body);
+      toast('เพิ่ม Platform สำเร็จ', 'success');
+    }
+    closePlatformForm();
+    loadPlatforms();
+  } catch (e) { errEl.textContent = e.message; }
+}
+
+/* API Key Panel */
+function openApikeyPanel(id, name) {
+  _apikeyPlatformId = id;
+  document.getElementById('apikeyPlatformName').textContent = name;
+  document.getElementById('apikeyInput').value  = '';
+  document.getElementById('apikeyInput').type   = 'password';
+  document.getElementById('apikeyModel').value  = '';
+  document.getElementById('apikeyExtra').value  = '{}';
+  document.getElementById('apikeyError').textContent = '';
+  document.getElementById('apikeyPanel').style.display = 'block';
+  document.getElementById('apikeyInput').focus();
+  // scroll into view
+  document.getElementById('apikeyPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeApikeyPanel() {
+  document.getElementById('apikeyPanel').style.display = 'none';
+  _apikeyPlatformId = null;
+}
+
+function toggleApikeyVisibility() {
+  const inp = document.getElementById('apikeyInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+async function saveApiKey() {
+  const errEl = document.getElementById('apikeyError');
+  errEl.textContent = '';
+  const api_key     = document.getElementById('apikeyInput').value.trim();
+  const model       = document.getElementById('apikeyModel').value.trim();
+  const extra_raw   = document.getElementById('apikeyExtra').value.trim();
+  try {
+    JSON.parse(extra_raw || '{}');
+  } catch { errEl.textContent = 'Extra Config ต้องเป็น JSON ที่ถูกต้อง'; return; }
+  const body = { api_key };
+  if (model) body.model = model;
+  if (extra_raw) body.extra_config = extra_raw;
+  try {
+    await api('PATCH', `/api/admin/platforms/${_apikeyPlatformId}`, body);
+    toast(api_key ? 'บันทึก API Key สำเร็จ ✓' : 'ลบ API Key สำเร็จ', 'success');
+    closeApikeyPanel();
+    loadPlatforms();
+  } catch (e) { errEl.textContent = e.message; }
+}
+
+/* Docs Guide Panel */
+async function showDocs(id) {
+  try {
+    const platforms = await api('GET', '/api/admin/platforms');
+    const p = platforms.find(pl => pl.id === id);
+    if (!p) return;
+    document.getElementById('docsPanelTitle').textContent = `📖 ${p.name} — คู่มือการเชื่อมต่อ`;
+    const guide = p.docs_guide || '_ยังไม่มีคู่มือสำหรับ platform นี้_';
+    document.getElementById('docsPanelBody').innerHTML = mdToHtml(guide);
+    document.getElementById('docsPanel').style.display = 'block';
+    document.getElementById('docsPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function closeDocsPanel() {
+  document.getElementById('docsPanel').style.display = 'none';
+}
+
+/* Simple markdown → HTML (h2, h3, bold, code, lists, paragraphs) */
+function mdToHtml(md) {
+  return md
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/^(?!<[hul])(.+)$/gm, '<p>$1</p>')
+    .replace(/<p><\/p>/g, '');
+}
+
+/* Toggle Visible */
+async function togglePlatformVisible(id, checkbox) {
+  const label = checkbox.closest('.toggle-switch').querySelector('.toggle-label');
+  try {
+    const res = await api('PATCH', `/api/admin/platforms/${id}/toggle-visible`);
+    label.textContent = res.is_visible ? 'แสดง' : 'ซ่อน';
+    toast(res.is_visible ? 'แสดง Platform แล้ว' : 'ซ่อน Platform แล้ว', 'success');
+  } catch (e) {
+    checkbox.checked = !checkbox.checked;
+    toast(e.message, 'error');
+  }
+}
+
+/* Delete Platform */
+async function deletePlatform(id, name) {
+  if (!confirm(`ลบ platform "${name}" ? การ generate ที่ผ่านมาจะยังคงอยู่ในประวัติ`)) return;
+  try {
+    await api('DELETE', `/api/admin/platforms/${id}`);
+    toast('ลบ Platform สำเร็จ', 'success');
+    loadPlatforms();
   } catch (e) { toast(e.message, 'error'); }
 }
 
