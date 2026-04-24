@@ -231,6 +231,36 @@ def init_db():
     _ensure_super_admin()
     _seed_categories()
     _seed_platforms()
+    _patch_google_imagen_docs()
+
+
+def _patch_google_imagen_docs():
+    """อัปเดต docs_guide ของ google-imagen3 ให้ระบุ AI Studio key ชัดเจน"""
+    new_guide = (
+        '## Google Imagen 3 (AI Studio)\n\n'
+        '### วิธีขอ API Key (ง่ายที่สุด!)\n'
+        '1. ไปที่ **https://aistudio.google.com/apikey**\n'
+        '2. คลิก **Create API key**\n'
+        '3. คัดลอก key (ขึ้นต้นด้วย `AIza...`)\n'
+        '4. นำมาใส่ในช่อง API Key ด้านบนได้เลย ✅\n\n'
+        '### ราคา\n'
+        '- **ฟรี** ใน Free tier (จำกัดจำนวนต่อวัน)\n'
+        '- Pay-as-you-go: ~**$0.02/ภาพ** (1:1 1024px)\n\n'
+        '### สิ่งที่รองรับ\n'
+        '- Aspect ratio: 1:1, 16:9, 9:16, 4:3\n'
+        '- โมเดล: `imagen-3.0-generate-001`\n'
+        '- ภาษาไทยในตัว prompt รองรับ ✅\n\n'
+        '### หมายเหตุ\n'
+        '- ไม่ต้องตั้งค่า GCP Project / Service Account\n'
+        '- AI Studio key ใช้ได้ทันที ไม่ต้องขอ whitelist\n'
+        '- ถ้า error 403: เปิด Imagen API ใน https://aistudio.google.com ก่อน'
+    )
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE ai_platforms SET docs_guide=?, base_url=? WHERE slug='google-imagen3'",
+            (new_guide,
+             'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict')
+        )
 
 
 def _seed_categories():
@@ -603,6 +633,41 @@ def _gen_leonardo(api_key, prompt, neg_prompt, size_key):
             raise Exception('Leonardo generation failed')
     raise Exception('Leonardo generation timed out (90s)')
 
+def _gen_google_imagen(api_key: str, prompt: str, size_key: str):
+    """
+    Google Imagen 3 ผ่าน AI Studio (Gemini Developer API)
+    ใช้ key จาก https://aistudio.google.com/apikey โดยตรง
+    """
+    # aspect ratio ที่ Imagen 3 รองรับ
+    ar_map = {'1:1': '1:1', '16:9': '16:9', '9:16': '9:16', '4:3': '4:3', '3:4': '3:4'}
+    ar = ar_map.get(size_key, '1:1')
+
+    url = (f'https://generativelanguage.googleapis.com/v1beta'
+           f'/models/imagen-3.0-generate-001:predict?key={api_key}')
+    payload = {
+        'instances': [{'prompt': prompt}],
+        'parameters': {
+            'sampleCount': 1,
+            'aspectRatio': ar,
+            'safetySetting': 'block_only_high',
+            'personGeneration': 'allow_adult',
+        }
+    }
+    result = _http_post_json(url, payload, {})
+
+    predictions = result.get('predictions') or []
+    if not predictions:
+        raise Exception('Google Imagen: ไม่ได้รับภาพจาก API (predictions ว่าง)')
+
+    b64 = predictions[0].get('bytesBase64Encoded', '')
+    if not b64:
+        raise Exception('Google Imagen: ไม่มีข้อมูลภาพใน response')
+
+    # token usage (Imagen ไม่รายงาน tokens — ใช้ estimate)
+    tokens = _estimate_tokens(prompt)
+    return _save_b64_image(b64), 0.02, tokens
+
+
 def _call_platform_api(platform, prompt, neg_prompt, size_key, quality):
     """Route to correct generator. Returns (filename, cost_usd, tokens)."""
     s = platform['slug']
@@ -614,6 +679,7 @@ def _call_platform_api(platform, prompt, neg_prompt, size_key, quality):
     if s == 'ideogram-v2':          return _gen_ideogram(k, prompt, neg_prompt, size_key)
     if s == 'flux-replicate':       return _gen_flux_replicate(k, prompt, size_key)
     if s == 'leonardo-ai':          return _gen_leonardo(k, prompt, neg_prompt, size_key)
+    if s == 'google-imagen3':       return _gen_google_imagen(k, prompt, size_key)
     raise Exception(f'Platform "{s}" ยังไม่รองรับการ generate อัตโนมัติ — ใช้งานบน platform นั้นโดยตรง')
 
 
