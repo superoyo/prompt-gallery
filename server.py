@@ -1507,7 +1507,7 @@ def test_google_list_models():
     if api_key == '__use_saved__':
         # ต้องเป็น admin เท่านั้น
         token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
-        user  = _verify_token(token)
+        user  = verify_token(token)
         if not user or not user.get('is_admin'):
             return jsonify({'ok': False, 'error': 'ต้องเป็น Admin'}), 403
         with get_db() as conn:
