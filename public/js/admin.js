@@ -51,6 +51,8 @@ function navigateTo(page) {
   else if (page === 'categories') loadCategories();
   else if (page === 'platforms') loadPlatforms();
   else if (page === 'logs')      loadLogs(1);
+  else if (page === 'settings-apikeys') loadSettingsApiKeys();
+  else if (page === 'settings-tests')   { /* static page, no load needed */ }
 }
 
 /* ── Dashboard ──────────────────────────────────────────────────── */
@@ -727,6 +729,158 @@ function fmt(iso) {
       hour: '2-digit', minute: '2-digit'
     });
   } catch { return iso; }
+}
+
+/* ── Settings: API Keys ─────────────────────────────────────────── */
+async function loadSettingsApiKeys() {
+  const el = document.getElementById('apikeySettingsList');
+  el.innerHTML = '<div style="color:var(--text-2);padding:12px">กำลังโหลด...</div>';
+  try {
+    const platforms = await api('GET', '/api/admin/platforms');
+    el.innerHTML = platforms.map(p => `
+      <div class="apikey-setting-card" id="keycard-${p.id}">
+        <div class="apikey-setting-header">
+          <span class="apikey-setting-icon">${esc(p.icon || '🤖')}</span>
+          <div>
+            <div class="apikey-setting-name">${esc(p.name)}</div>
+            <div class="apikey-setting-slug">${esc(p.slug)}</div>
+          </div>
+        </div>
+        <div class="apikey-setting-body">
+          <input type="password" class="apikey-setting-input" id="keyinput-${p.id}"
+            placeholder="ใส่ API Key..."
+            value="${p.has_key ? '••••••••••••••••' : ''}"
+            data-has-key="${p.has_key ? '1' : '0'}"
+            onfocus="clearPlaceholderKey(${p.id})"
+          />
+          <button class="btn-eye-sm" onclick="toggleSettingKey(${p.id})">👁</button>
+          <button class="btn-save-key" onclick="saveSettingKey(${p.id})">💾 บันทึก</button>
+          <button class="btn-test-key" id="testbtn-${p.id}" onclick="testSettingKey(${p.id}, '${esc(p.slug)}', '${esc(p.name)}')">🧪 Test</button>
+        </div>
+        <div class="apikey-setting-status" id="keystatus-${p.id}">
+          ${p.has_key
+            ? '<span class="key-status-set">✓ มี API Key บันทึกอยู่</span>'
+            : '<span class="key-status-set" style="color:var(--text-3)">ยังไม่ได้ตั้งค่า</span>'}
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--red);padding:12px">${esc(e.message)}</div>`;
+  }
+}
+
+function clearPlaceholderKey(id) {
+  const inp = document.getElementById(`keyinput-${id}`);
+  if (inp.dataset.hasKey === '1') { inp.value = ''; inp.dataset.hasKey = '0'; }
+}
+
+function toggleSettingKey(id) {
+  const inp = document.getElementById(`keyinput-${id}`);
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+async function saveSettingKey(id) {
+  const inp    = document.getElementById(`keyinput-${id}`);
+  const apiKey = inp.value.trim();
+  const status = document.getElementById(`keystatus-${id}`);
+  if (inp.dataset.hasKey === '1') { toast('กดที่ช่อง API Key เพื่อแก้ไขก่อน แล้วกด บันทึก', 'info'); return; }
+  try {
+    await api('PATCH', `/api/admin/platforms/${id}`, { api_key: apiKey });
+    status.innerHTML = apiKey
+      ? '<span class="key-status-ok">✅ บันทึก API Key สำเร็จ</span>'
+      : '<span class="key-status-set" style="color:var(--text-3)">ลบ API Key แล้ว</span>';
+    document.getElementById(`keyinput-${id}`).dataset.hasKey = apiKey ? '1' : '0';
+    if (apiKey) document.getElementById(`keyinput-${id}`).value = '••••••••••••••••';
+    toast('บันทึก API Key สำเร็จ', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function testSettingKey(id, slug, name) {
+  const inp    = document.getElementById(`keyinput-${id}`);
+  const btn    = document.getElementById(`testbtn-${id}`);
+  const status = document.getElementById(`keystatus-${id}`);
+
+  // ถ้า input ว่างหรือเป็น placeholder ให้ใช้ key ที่บันทึกไว้ใน DB
+  const rawVal  = inp.value.trim();
+  const useDb   = (!rawVal || rawVal === '••••••••••••••••');
+  const apiKey  = useDb ? '__use_saved__' : rawVal;
+
+  btn.disabled = true; btn.textContent = '⏳';
+  status.innerHTML = '<span class="key-status-set">กำลังทดสอบ...</span>';
+
+  try {
+    // Google → ใช้ list-models endpoint
+    if (slug === 'google-imagen3') {
+      const keyToSend = useDb ? '__use_saved__' : apiKey;
+      const res  = await fetch('/api/test/google-list-models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${A.token}` },
+        body: JSON.stringify({ api_key: keyToSend })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const imgModels = (data.models || []).filter(m => {
+          const id2 = (m.name||'').toLowerCase();
+          const methods = m.supportedGenerationMethods || [];
+          return methods.includes('predict') || id2.includes('imagen') || id2.includes('image-generation') || id2.includes('-image-');
+        });
+        status.innerHTML = `<span class="key-status-ok">✅ API Key ใช้งานได้ — พบ ${imgModels.length} image models</span>`;
+        showApiTestModal(name, true, `API Key ใช้งานได้ พบ ${imgModels.length} models ที่สร้างภาพได้`, data.models || []);
+      } else {
+        status.innerHTML = `<span class="key-status-fail">❌ ${esc(data.error || 'ไม่สามารถเชื่อมต่อได้')}</span>`;
+        showApiTestModal(name, false, data.error || 'ล้มเหลว', []);
+      }
+      return;
+    }
+
+    // Other platforms — generic test (just check if key is saved)
+    status.innerHTML = '<span class="key-status-set">⚠️ การทดสอบอัตโนมัติสำหรับ platform นี้ยังไม่รองรับ</span>';
+    toast(`ยังไม่รองรับการทดสอบสำหรับ ${name}`, 'info');
+  } catch (e) {
+    status.innerHTML = `<span class="key-status-fail">❌ ${esc(e.message)}</span>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '🧪 Test';
+  }
+}
+
+
+function showApiTestModal(platformName, ok, message, models) {
+  document.getElementById('apikeyTestModalTitle').textContent = `🧪 ทดสอบ — ${platformName}`;
+  const statusEl  = document.getElementById('apikeyTestStatus');
+  const modelsEl  = document.getElementById('apikeyTestModels');
+  const tbody     = document.getElementById('apikeyTestModelsTbody');
+
+  statusEl.className = `apitest-status ${ok ? 'apitest-ok' : 'apitest-fail'}`;
+  statusEl.textContent = (ok ? '✅ ' : '❌ ') + message;
+
+  if (ok && models.length > 0) {
+    const imgModels = models.filter(m => {
+      const id = (m.name||'').toLowerCase();
+      const methods = m.supportedGenerationMethods || [];
+      return methods.includes('predict') || id.includes('imagen') || id.includes('image-generation') || id.includes('-image-');
+    });
+    const others = models.filter(m => !imgModels.includes(m));
+
+    tbody.innerHTML = imgModels.map(m => {
+      const modelId = (m.name||'').replace('models/','');
+      const methods = m.supportedGenerationMethods || [];
+      const tags = methods.map(met =>
+        met === 'generateContent' ? `<span class="method-tag tag-gc">generateContent</span>` :
+        met === 'predict'         ? `<span class="method-tag tag-pred">predict</span>` :
+        `<span class="method-tag tag-misc">${esc(met)}</span>`
+      ).join('');
+      return `<tr>
+        <td><code style="font-size:.76rem">${esc(modelId)}</code></td>
+        <td style="font-size:.82rem">${esc(m.displayName||'')}</td>
+        <td>${tags}</td>
+      </tr>`;
+    }).join('') + (others.length ? `<tr><td colspan="3" style="color:var(--text-3);font-size:.78rem;padding:8px 12px">+ ${others.length} models อื่น ๆ (text/embedding)</td></tr>` : '');
+
+    modelsEl.style.display = 'block';
+  } else {
+    modelsEl.style.display = 'none';
+  }
+
+  document.getElementById('apikeyTestModal').removeAttribute('hidden');
 }
 
 /* ── Init ────────────────────────────────────────────────────────── */

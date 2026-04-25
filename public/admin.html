@@ -46,6 +46,19 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
       Login Logs
     </a>
+
+    <!-- Settings group -->
+    <div class="nav-divider"></div>
+    <div class="nav-group-label">Settings</div>
+    <a href="#" class="nav-item" data-page="settings-apikeys">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+      API Keys
+    </a>
+    <a href="#" class="nav-item" data-page="settings-tests">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/></svg>
+      Test Tools
+    </a>
+
     <div class="nav-divider"></div>
     <a href="/" class="nav-item nav-item-back">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
@@ -297,7 +310,85 @@
     <div class="pagination" id="logsPagination"></div>
   </div>
 
+  <!-- ── Settings: API Keys ─────────────────────────────────────── -->
+  <div id="page-settings-apikeys" class="page">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">⚙️ API Keys</h1>
+        <p class="page-sub">ตั้งค่า API key สำหรับแต่ละ AI platform — กด Test เพื่อตรวจสอบว่าใช้ได้จริง</p>
+      </div>
+    </div>
+    <div id="apikeySettingsList"></div>
+  </div>
+
+  <!-- ── Settings: Test Tools ────────────────────────────────────── -->
+  <div id="page-settings-tests" class="page">
+    <div class="page-header">
+      <h1 class="page-title">🧪 Test Tools</h1>
+      <p class="page-sub">เครื่องมือทดสอบการเชื่อมต่อกับ AI แต่ละค่าย</p>
+    </div>
+    <div class="test-tools-grid">
+
+      <div class="test-tool-card" onclick="window.open('/google-test','_blank')">
+        <div class="ttc-icon">🔵</div>
+        <div class="ttc-body">
+          <div class="ttc-name">Google AI Studio Test</div>
+          <div class="ttc-desc">ทดสอบ Gemini / Imagen — ดู models ที่ใช้ได้, generate ภาพ, debug raw response</div>
+        </div>
+        <div class="ttc-arrow">↗</div>
+      </div>
+
+      <div class="test-tool-card ttc-disabled">
+        <div class="ttc-icon">🟢</div>
+        <div class="ttc-body">
+          <div class="ttc-name">OpenAI Test <span class="ttc-soon">เร็ว ๆ นี้</span></div>
+          <div class="ttc-desc">ทดสอบ DALL-E 3, GPT-Image-1 และ models อื่น ๆ</div>
+        </div>
+        <div class="ttc-arrow">↗</div>
+      </div>
+
+      <div class="test-tool-card ttc-disabled">
+        <div class="ttc-icon">🟣</div>
+        <div class="ttc-body">
+          <div class="ttc-name">Stability AI Test <span class="ttc-soon">เร็ว ๆ นี้</span></div>
+          <div class="ttc-desc">ทดสอบ Stable Diffusion 3.5, SDXL</div>
+        </div>
+        <div class="ttc-arrow">↗</div>
+      </div>
+
+      <div class="test-tool-card ttc-disabled">
+        <div class="ttc-icon">🟠</div>
+        <div class="ttc-body">
+          <div class="ttc-name">Replicate / Flux Test <span class="ttc-soon">เร็ว ๆ นี้</span></div>
+          <div class="ttc-desc">ทดสอบ Flux 1.1 Pro และ models บน Replicate</div>
+        </div>
+        <div class="ttc-arrow">↗</div>
+      </div>
+
+    </div>
+  </div>
+
 </main>
+
+<!-- ── MODAL: API Key Test ────────────────────────────────────────── -->
+<div class="modal-overlay" id="apikeyTestModal" hidden>
+  <div class="modal modal-wide">
+    <button class="modal-close" onclick="closeModal('apikeyTestModal')">&times;</button>
+    <h2 class="modal-title" id="apikeyTestModalTitle">ทดสอบ API Key</h2>
+    <div class="modal-body">
+      <div id="apikeyTestStatus" class="apitest-status"></div>
+      <div id="apikeyTestModels" style="margin-top:12px;display:none">
+        <div class="apitest-models-label">Models ที่ใช้ได้:</div>
+        <div class="gt-table-wrap" style="margin-top:8px">
+          <table class="data-table" style="font-size:.8rem">
+            <thead><tr><th>Model ID</th><th>Display Name</th><th>Methods</th></tr></thead>
+            <tbody id="apikeyTestModelsTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ── MODAL: Reset Password ───────────────────────────────────── -->
 <div class="modal-overlay" id="resetModal" hidden>

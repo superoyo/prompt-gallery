@@ -1370,6 +1370,7 @@ def admin_list_platforms():
         d = row_to_dict(r)
         key = d.get('api_key', '')
         d['api_key_masked'] = ('••••••' + key[-6:]) if len(key) > 6 else ('••' if key else '')
+        d['has_key'] = bool(key.strip())
         d.pop('api_key', None)
         result.append(d)
     return jsonify(result)
@@ -1496,11 +1497,25 @@ def google_test_page():
 
 @app.route('/api/test/google-list-models', methods=['POST'])
 def test_google_list_models():
-    """ดึงรายชื่อ model ทั้งหมดจาก Google Generative Language API"""
+    """ดึงรายชื่อ model ทั้งหมดจาก Google Generative Language API
+    รับ api_key = '__use_saved__' เพื่อใช้ key ที่บันทึกใน DB ของ google-imagen3
+    """
     data    = request.get_json() or {}
     api_key = (data.get('api_key') or '').strip()
+
+    # ใช้ saved key จาก DB (admin เรียกจาก Settings)
+    if api_key == '__use_saved__':
+        # ต้องเป็น admin เท่านั้น
+        token = request.headers.get('Authorization', '').replace('Bearer ', '').strip()
+        user  = _verify_token(token)
+        if not user or not user.get('is_admin'):
+            return jsonify({'ok': False, 'error': 'ต้องเป็น Admin'}), 403
+        with get_db() as conn:
+            row = conn.execute("SELECT api_key FROM ai_platforms WHERE slug='google-imagen3'").fetchone()
+        api_key = (row['api_key'] if row else '').strip()
+
     if not api_key:
-        return jsonify({'ok': False, 'error': 'ไม่มี API Key'}), 400
+        return jsonify({'ok': False, 'error': 'ไม่มี API Key — กรุณาบันทึก API Key สำหรับ Google Imagen ก่อน'}), 400
 
     url = f'https://generativelanguage.googleapis.com/v1beta/models?key={api_key}&pageSize=200'
     req = urllib.request.Request(url, headers={'Content-Type': 'application/json'}, method='GET')

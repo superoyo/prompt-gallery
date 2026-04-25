@@ -73,6 +73,12 @@ body { background: var(--bg); color: var(--text); display: flex; overflow: hidde
 
 .nav-divider { height: 1px; background: var(--border); margin: 8px 4px; }
 
+.nav-group-label {
+  font-size: 0.68rem; font-weight: 700; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .08em;
+  padding: 4px 12px 2px;
+}
+
 .nav-item-back {
   color: var(--blue-2) !important;
   border: 1px solid var(--blue-5);
@@ -700,9 +706,94 @@ body { background: var(--bg); color: var(--text); display: flex; overflow: hidde
 }
 .btn-sm:hover { border-color: var(--blue-3); color: var(--blue-2); }
 
+/* ── Settings: API Keys ─────────────────────────────────────────── */
+.apikey-setting-card {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px; margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.apikey-setting-header {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+}
+.apikey-setting-icon { font-size: 1.4rem; flex-shrink: 0; }
+.apikey-setting-name { font-weight: 700; font-size: 0.95rem; color: var(--text); }
+.apikey-setting-slug { font-size: 0.75rem; color: var(--text-3); font-family: 'Fira Code', monospace; }
+.apikey-setting-body { display: flex; gap: 8px; align-items: center; }
+.apikey-setting-input {
+  flex: 1; background: var(--bg-3); border: 1.5px solid var(--border);
+  color: var(--text); border-radius: 9px; padding: 9px 13px;
+  font-family: 'Fira Code', monospace; font-size: 0.82rem; outline: none;
+  transition: .15s;
+}
+.apikey-setting-input:focus { border-color: var(--blue-3); background: white; }
+.btn-eye-sm {
+  background: var(--bg-3); border: 1.5px solid var(--border); color: var(--text-2);
+  border-radius: 9px; padding: 0 11px; cursor: pointer; font-size: .95rem;
+  height: 38px; transition: .15s;
+}
+.btn-eye-sm:hover { border-color: var(--blue-3); }
+.btn-save-key {
+  background: var(--grad-btn); color: white; border: none; border-radius: 9px;
+  padding: 9px 16px; font-size: 0.82rem; font-weight: 700; cursor: pointer;
+  font-family: inherit; transition: .15s; white-space: nowrap;
+}
+.btn-save-key:hover { opacity: .88; }
+.btn-test-key {
+  background: white; color: var(--blue-2); border: 1.5px solid var(--blue-5);
+  border-radius: 9px; padding: 9px 14px; font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: .15s; white-space: nowrap;
+}
+.btn-test-key:hover { background: #eff6ff; border-color: var(--blue-3); }
+.btn-test-key:disabled { opacity: .5; cursor: not-allowed; }
+.apikey-setting-status {
+  margin-top: 8px; font-size: 0.8rem; min-height: 20px;
+  display: flex; align-items: center; gap: 6px;
+}
+.key-status-ok   { color: var(--green); }
+.key-status-fail { color: var(--red); }
+.key-status-set  { color: var(--text-3); }
+
+/* ── Settings: Test Tools ───────────────────────────────────────── */
+.test-tools-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+.test-tool-card {
+  background: var(--bg-2); border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 18px 20px;
+  display: flex; align-items: center; gap: 14px;
+  cursor: pointer; transition: .15s; box-shadow: var(--shadow-sm);
+  text-decoration: none;
+}
+.test-tool-card:hover { border-color: var(--blue-3); box-shadow: var(--shadow); transform: translateY(-1px); }
+.ttc-disabled { opacity: .55; cursor: not-allowed; }
+.ttc-disabled:hover { transform: none; border-color: var(--border); box-shadow: var(--shadow-sm); }
+.ttc-icon { font-size: 1.6rem; flex-shrink: 0; }
+.ttc-body { flex: 1; }
+.ttc-name { font-weight: 700; font-size: 0.9rem; color: var(--text); display: flex; align-items: center; gap: 7px; }
+.ttc-desc { font-size: 0.78rem; color: var(--text-2); margin-top: 3px; line-height: 1.5; }
+.ttc-arrow { color: var(--text-3); font-size: 1rem; }
+.ttc-soon { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 99px; }
+
+/* ── API Test Modal ──────────────────────────────────────────────── */
+.modal-wide { max-width: 720px; width: 95vw; }
+.apitest-status {
+  padding: 12px 16px; border-radius: 9px; font-size: 0.88rem; line-height: 1.6;
+}
+.apitest-ok   { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
+.apitest-fail { background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; }
+.apitest-wait { background: #fefce8; border: 1px solid #fef08a; color: #a16207; }
+.apitest-models-label { font-size: 0.8rem; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .06em; }
+.method-tag { display: inline-block; font-size: .68rem; padding: 1px 6px; border-radius: 4px; font-weight: 700; margin-right: 3px; }
+.tag-gc   { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.tag-pred { background: #f5f3ff; color: #5b21b6; border: 1px solid #ddd6fe; }
+.tag-misc { background: var(--bg-3); color: var(--text-2); border: 1px solid var(--border); }
+
 /* ── Responsive ────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sidebar { display: none; }
   .main-content { max-width: 100vw; padding: 20px 16px; }
   .platform-form-grid { grid-template-columns: 1fr 1fr; }
+  .test-tools-grid { grid-template-columns: 1fr; }
+  .apikey-setting-body { flex-wrap: wrap; }
 }
