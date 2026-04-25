@@ -4,8 +4,9 @@
 
 /* ── State ──────────────────────────────────────────────────── */
 const lab = {
-  platforms:      [],   // all visible platforms from API
+  platforms:      [],   // all enabled platforms from API
   selectedSlug:   null, // currently selected platform slug
+  selectedModel:  null, // currently selected model (null = use platform default)
   ratio:         '1:1',
   historyPage:    1,
   totalHistoryPages: 1,
@@ -71,8 +72,8 @@ function estimateTokens(text) {
    ══════════════════════════════════════════════════════════════ */
 async function loadPlatforms() {
   try {
-    // fetch all visible (all=1) so we can show disabled ones greyed out
-    const data = await fetch('/api/platforms?all=1').then(r => r.json());
+    // fetch only enabled platforms (is_enabled=1 with API key configured)
+    const data = await fetch('/api/platforms').then(r => r.json());
     lab.platforms = Array.isArray(data) ? data : [];
     renderPlatformMenu();
     populateHistoryFilter();
@@ -82,21 +83,32 @@ async function loadPlatforms() {
   }
 }
 
+/* ── แยก platform ที่พร้อมใช้จริง ──
+   - มี API key (is_enabled=1, กรองมาจาก server แล้ว)
+   - ถ้าเป็น google-imagen3: ต้องมี enabled_models อย่างน้อย 1 model
+   - platform อื่น: แค่มี API key ก็พอ
+*/
+function isPlatformReady(p) {
+  if (p.slug === 'google-imagen3') {
+    return Array.isArray(p.enabled_models) && p.enabled_models.length > 0;
+  }
+  return true;
+}
+
 function renderPlatformMenu() {
   const list = document.getElementById('platformMenuList');
-  if (!lab.platforms.length) {
+  const ready = lab.platforms.filter(isPlatformReady);
+
+  if (!ready.length) {
     document.getElementById('noPlatformNotice').style.display = 'block';
-    list.innerHTML = '<div class="pm-loading">ยังไม่มี platform ที่พร้อมใช้งาน</div>';
+    list.innerHTML = '<div class="pm-loading">ยังไม่มี AI platform ที่พร้อมใช้งาน</div>';
     return;
   }
+  document.getElementById('noPlatformNotice').style.display = 'none';
 
-  // show notice only when ALL disabled
-  const anyEnabled = lab.platforms.some(p => p.is_enabled);
-  document.getElementById('noPlatformNotice').style.display = anyEnabled ? 'none' : 'block';
-
-  list.innerHTML = lab.platforms.map(p => `
-    <div class="pm-item ${p.slug === lab.selectedSlug ? 'selected' : ''} ${!p.is_enabled ? 'disabled' : ''}"
-         onclick="${p.is_enabled ? `selectPlatform('${le(p.slug)}')` : ''}">
+  list.innerHTML = ready.map(p => `
+    <div class="pm-item ${p.slug === lab.selectedSlug ? 'selected' : ''}"
+         onclick="selectPlatform('${le(p.slug)}')">
       <span class="pm-icon">${le(p.icon || '🤖')}</span>
       <div class="pm-info">
         <div class="pm-name">${le(p.name)}</div>
@@ -104,26 +116,22 @@ function renderPlatformMenu() {
       </div>
       <div class="pm-right">
         <div class="pm-cost">$${(p.cost_per_gen || 0).toFixed(3)}/ภาพ</div>
-        <div style="margin-top:3px">
-          ${p.is_enabled
-            ? `<span class="pm-badge-ok">✓ พร้อมใช้</span>`
-            : `<span class="pm-badge-no">ไม่มี Key</span>`}
-        </div>
+        <div style="margin-top:3px"><span class="pm-badge-ok">✓ พร้อมใช้</span></div>
       </div>
     </div>
   `).join('');
 
-  // auto-select first enabled if none selected
-  if (!lab.selectedSlug) {
-    const first = lab.platforms.find(p => p.is_enabled);
-    if (first) selectPlatform(first.slug, false);
+  // auto-select first ready platform if none selected
+  if (!lab.selectedSlug || !ready.find(p => p.slug === lab.selectedSlug)) {
+    selectPlatform(ready[0].slug, false);
   }
 }
 
 function selectPlatform(slug, closeMenu = true) {
   const p = lab.platforms.find(pl => pl.slug === slug);
-  if (!p || !p.is_enabled) return;
+  if (!p) return;
   lab.selectedSlug = slug;
+  lab.selectedModel = null;
 
   // update button
   document.getElementById('pdIcon').textContent = p.icon || '🤖';
@@ -136,8 +144,34 @@ function selectPlatform(slug, closeMenu = true) {
     if (el.querySelector('.pm-name')?.textContent === p.name) el.classList.add('selected');
   });
 
+  // show model selector if platform has enabled_models
+  renderModelSelector(p);
+
   if (closeMenu) closePlatformMenu();
   updateGenerateBtn();
+}
+
+function renderModelSelector(platform) {
+  const group  = document.getElementById('modelSelectorGroup');
+  const select = document.getElementById('modelSelect');
+  if (!group || !select) return;
+
+  const models = Array.isArray(platform.enabled_models) ? platform.enabled_models : [];
+  if (!models.length) {
+    group.style.display = 'none';
+    lab.selectedModel = null;
+    return;
+  }
+
+  // Populate options
+  select.innerHTML = models.map(m =>
+    `<option value="${le(m)}">${le(m)}</option>`
+  ).join('');
+
+  // Pre-select first model
+  lab.selectedModel = models[0];
+  select.value = models[0];
+  group.style.display = '';
 }
 
 function togglePlatformMenu(e) {
@@ -240,13 +274,15 @@ async function generate() {
   resultArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
   try {
-    const res = await labApi('POST', '/api/lab/generate', {
+    const body = {
       prompt,
       platforms: [lab.selectedSlug],
       negative_prompt: neg,
       size: lab.ratio,
       quality,
-    });
+    };
+    if (lab.selectedModel) body.model = lab.selectedModel;
+    const res = await labApi('POST', '/api/lab/generate', body);
 
     const result = res.results?.[0];
     if (!result) throw new Error('ไม่ได้รับผลลัพธ์จาก server');

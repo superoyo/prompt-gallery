@@ -399,10 +399,19 @@
         <div style="font-size:.78rem;font-weight:700;color:var(--text-2);margin-bottom:8px" id="gt2_modelsTitle"></div>
         <div style="overflow-x:auto;border:1px solid var(--border);border-radius:9px">
           <table class="data-table" style="font-size:.78rem">
-            <thead><tr><th>Model ID</th><th>Display Name</th><th>Methods</th><th></th></tr></thead>
+            <thead><tr>
+              <th style="width:36px"><input type="checkbox" id="gt2_checkAll" title="เลือกทั้งหมด" onchange="gt2_checkAllToggle(this)"/></th>
+              <th>Model ID</th><th>Display Name</th><th>Methods</th><th></th>
+            </tr></thead>
             <tbody id="gt2_imgBody"></tbody>
             <tbody id="gt2_otherBody" style="display:none"></tbody>
           </table>
+        </div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+          <button class="btn-primary" onclick="gt2_saveModels()" style="padding:8px 20px;font-size:.82rem">
+            💾 บันทึก Models ที่เลือก
+          </button>
+          <span id="gt2_saveStatus" style="font-size:.78rem;color:var(--text-3)"></span>
         </div>
       </div>
     </div>

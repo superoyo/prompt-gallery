@@ -60,7 +60,7 @@ function navigateTo(page) {
   else if (page === 'logs')      loadLogs(1);
   else if (page === 'settings-apikeys') loadSettingsApiKeys();
   else if (page === 'settings-tests')   { /* static page */ }
-  else if (page === 'test-google')      { /* static page, JS handles itself */ }
+  else if (page === 'test-google')      gt2_loadPlatformInfo();
 }
 
 /* ── Dashboard ──────────────────────────────────────────────────── */
@@ -740,6 +740,23 @@ function fmt(iso) {
 }
 
 /* ── Embedded: Google AI Studio Test ────────────────────────────── */
+let gt2_platformInfo = null;   // stores google-imagen3 platform data
+
+async function gt2_loadPlatformInfo() {
+  try {
+    const res  = await fetch('/api/admin/platforms', {
+      headers: { Authorization: `Bearer ${A.token}` }
+    });
+    const data = await safeJson(res);
+    if (!Array.isArray(data)) return;
+    gt2_platformInfo = data.find(pl => pl.slug === 'google-imagen3') || null;
+    const keyInput = document.getElementById('gt2_apiKey');
+    if (keyInput && gt2_platformInfo?.has_key) {
+      keyInput.placeholder = '(ใช้ key ที่บันทึกไว้ — หรือพิมพ์ key ใหม่เพื่อทดสอบ)';
+    }
+  } catch { /* silent */ }
+}
+
 function gt2_toggleKey() {
   const i = document.getElementById('gt2_apiKey');
   i.type = i.type === 'password' ? 'text' : 'password';
@@ -752,7 +769,7 @@ function gt2_isImageModel(name, methods) {
     n.includes('-image-') || n.endsWith('-image');
 }
 
-function gt2_modelRow(m, useFn) {
+function gt2_modelRow(m, useFn, enabledSet) {
   const modelId = (m.name || '').replace('models/', '');
   const methods = m.supportedGenerationMethods || [];
   const tags = methods.map(met =>
@@ -760,7 +777,9 @@ function gt2_modelRow(m, useFn) {
     met === 'predict'         ? `<span class="method-tag tag-pred">predict</span>` :
     `<span class="method-tag tag-misc">${esc(met)}</span>`
   ).join('');
+  const checked = enabledSet && enabledSet.has(modelId) ? ' checked' : '';
   return `<tr>
+    <td><input type="checkbox" class="gt2-model-cb" value="${esc(modelId)}"${checked}/></td>
     <td><code style="font-size:.74rem">${esc(modelId)}</code></td>
     <td style="font-size:.8rem">${esc(m.displayName || '')}</td>
     <td>${tags}</td>
@@ -770,13 +789,19 @@ function gt2_modelRow(m, useFn) {
 
 async function gt2_listModels() {
   const apiKey = document.getElementById('gt2_apiKey').value.trim();
-  if (!apiKey) { alert('ใส่ API Key ก่อน'); return; }
+  // Allow using saved key when field is empty (if platform has one)
+  const useSaved = !apiKey && gt2_platformInfo?.has_key;
+  if (!apiKey && !useSaved) { alert('ใส่ API Key ก่อน หรือตั้งค่า key ใน Settings → API Keys'); return; }
   const btn = document.getElementById('gt2_listBtn');
   btn.disabled = true; btn.textContent = '⏳ กำลังโหลด...';
   try {
+    const body = useSaved
+      ? { __use_saved__: true, platform_slug: 'google-imagen3' }
+      : { api_key: apiKey };
     const res  = await fetch('/api/test/google-list-models', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ api_key: apiKey })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${A.token}` },
+      body: JSON.stringify(body)
     });
     const data = await safeJson(res);
     const area  = document.getElementById('gt2_modelsArea');
@@ -787,7 +812,7 @@ async function gt2_listModels() {
 
     if (!data.ok) {
       title.textContent = '';
-      imgBody.innerHTML = `<tr><td colspan="4" style="color:#be123c;padding:10px">${esc(data.error)}</td></tr>`;
+      imgBody.innerHTML = `<tr><td colspan="5" style="color:#be123c;padding:10px">${esc(data.error)}</td></tr>`;
       return;
     }
     const models    = data.models || [];
@@ -798,12 +823,17 @@ async function gt2_listModels() {
       const s = n => n.includes('imagen') ? 0 : n.includes('gemini') ? 1 : 2;
       return s(a.name||'') - s(b.name||'');
     });
+
+    // Build Set of currently enabled model IDs
+    const enabledArr = gt2_platformInfo?.enabled_models || [];
+    const enabledSet = new Set(Array.isArray(enabledArr) ? enabledArr : []);
+
     title.textContent = `พบ ${imgModels.length} models ที่สร้างภาพได้${others.length ? ` (+ ${others.length} อื่นๆ)` : ''}`;
-    imgBody.innerHTML = imgModels.map(m => gt2_modelRow(m, 'gt2_useModel')).join('') +
-      (others.length ? `<tr><td colspan="4" style="text-align:center;padding:8px">
+    imgBody.innerHTML = imgModels.map(m => gt2_modelRow(m, 'gt2_useModel', enabledSet)).join('') +
+      (others.length ? `<tr><td colspan="5" style="text-align:center;padding:8px">
         <button class="tc-debug-btn" onclick="gt2_toggleOthers()">▼ ดู ${others.length} models อื่นๆ</button>
       </td></tr>` : '');
-    otherBody.innerHTML = others.map(m => gt2_modelRow(m, 'gt2_useModel')).join('');
+    otherBody.innerHTML = others.map(m => gt2_modelRow(m, 'gt2_useModel', enabledSet)).join('');
     otherBody.style.display = 'none';
   } catch(e) { alert('Error: ' + e.message); }
   finally { btn.disabled = false; btn.textContent = '🔍 ดู Models'; }
@@ -811,7 +841,40 @@ async function gt2_listModels() {
 
 function gt2_toggleOthers() {
   const b = document.getElementById('gt2_otherBody');
-  b.style.display = b.style.display === 'none' ? '' : 'none';
+  const open = b.style.display === 'none';
+  b.style.display = open ? '' : 'none';
+}
+
+function gt2_checkAllToggle(cb) {
+  document.querySelectorAll('.gt2-model-cb').forEach(el => {
+    el.checked = cb.checked;
+  });
+}
+
+async function gt2_saveModels() {
+  if (!gt2_platformInfo) { alert('ไม่พบข้อมูล platform — ลอง navigate เข้ามาหน้านี้ใหม่'); return; }
+  const checked = Array.from(document.querySelectorAll('.gt2-model-cb:checked')).map(cb => cb.value);
+  const statusEl = document.getElementById('gt2_saveStatus');
+  if (statusEl) statusEl.textContent = '⏳ กำลังบันทึก...';
+  try {
+    const res = await fetch(`/api/admin/platforms/${gt2_platformInfo.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${A.token}` },
+      body: JSON.stringify({ enabled_models: checked })
+    });
+    const data = await safeJson(res);
+    if (data.ok) {
+      gt2_platformInfo.enabled_models = checked;
+      if (statusEl) statusEl.textContent = `✅ บันทึก ${checked.length} models แล้ว`;
+      toast(`บันทึก ${checked.length} models สำหรับ Prompt Lab แล้ว`, 'success');
+    } else {
+      if (statusEl) statusEl.textContent = '❌ บันทึกไม่ได้';
+      alert('Error: ' + (data.error || 'unknown'));
+    }
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '❌ เกิดข้อผิดพลาด';
+    alert('Error: ' + e.message);
+  }
 }
 
 function gt2_useModel(modelId) {
@@ -955,8 +1018,11 @@ async function loadSettingsApiKeys() {
       const formatHtml = meta.keyFormat
         ? `<span class="apikey-format">รูปแบบ: <code>${esc(meta.keyFormat)}</code></span>` : '';
 
+      const enabledModelsJson = esc(JSON.stringify(p.enabled_models || []));
       return `
-      <div class="apikey-setting-card" id="keycard-${p.id}">
+      <div class="apikey-setting-card" id="keycard-${p.id}"
+           data-platform-id="${p.id}"
+           data-enabled-models="${enabledModelsJson}">
         <div class="apikey-setting-header">
           <span class="apikey-setting-icon">${esc(p.icon || '🤖')}</span>
           <div style="flex:1">
@@ -995,6 +1061,8 @@ async function loadSettingsApiKeys() {
             ? '<span class="key-status-set">✓ มี API Key บันทึกอยู่แล้ว</span>'
             : '<span class="key-status-set" style="color:var(--text-3)">ยังไม่ได้ตั้งค่า</span>'}
         </div>
+        <!-- inline model picker (populated by JS after Test click) -->
+        <div id="modelpicker-${p.id}" style="display:none"></div>
       </div>`;
     }).join('');
   } catch (e) {
@@ -1033,40 +1101,46 @@ async function testSettingKey(id, slug, name) {
   const btn    = document.getElementById(`testbtn-${id}`);
   const status = document.getElementById(`keystatus-${id}`);
 
-  // ถ้า input ว่างหรือเป็น placeholder ให้ใช้ key ที่บันทึกไว้ใน DB
-  const rawVal  = inp.value.trim();
-  const useDb   = (!rawVal || rawVal === '••••••••••••••••');
-  const apiKey  = useDb ? '__use_saved__' : rawVal;
+  const rawVal = inp.value.trim();
+  const useDb  = (!rawVal || rawVal === '••••••••••••••••');
 
   btn.disabled = true; btn.textContent = '⏳';
   status.innerHTML = '<span class="key-status-set">กำลังทดสอบ...</span>';
 
   try {
-    // Google → ใช้ list-models endpoint
     if (slug === 'google-imagen3') {
-      const keyToSend = useDb ? '__use_saved__' : apiKey;
+      const body = useDb
+        ? { api_key: '__use_saved__' }
+        : { api_key: rawVal };
       const res  = await fetch('/api/test/google-list-models', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${A.token}` },
-        body: JSON.stringify({ api_key: keyToSend })
+        body: JSON.stringify(body)
       });
       const data = await safeJson(res);
+
       if (data.ok) {
         const imgModels = (data.models || []).filter(m => {
-          const id2 = (m.name||'').toLowerCase();
+          const n = (m.name||'').toLowerCase();
           const methods = m.supportedGenerationMethods || [];
-          return methods.includes('predict') || id2.includes('imagen') || id2.includes('image-generation') || id2.includes('-image-');
+          return methods.includes('predict') || n.includes('imagen') ||
+                 n.includes('image-generation') || n.includes('-image-');
         });
         status.innerHTML = `<span class="key-status-ok">✅ API Key ใช้งานได้ — พบ ${imgModels.length} image models</span>`;
-        showApiTestModal(name, true, `API Key ใช้งานได้ พบ ${imgModels.length} models ที่สร้างภาพได้`, data.models || []);
+        // get current enabled_models from card data attribute
+        const card = document.getElementById(`keycard-${id}`);
+        let currentEnabled = [];
+        try { currentEnabled = JSON.parse(card.dataset.enabledModels || '[]'); } catch {}
+        renderInlineModelPicker(id, imgModels, currentEnabled);
       } else {
         status.innerHTML = `<span class="key-status-fail">❌ ${esc(data.error || 'ไม่สามารถเชื่อมต่อได้')}</span>`;
-        showApiTestModal(name, false, data.error || 'ล้มเหลว', []);
+        // hide picker on error
+        const picker = document.getElementById(`modelpicker-${id}`);
+        if (picker) picker.style.display = 'none';
       }
       return;
     }
-
-    // Other platforms — generic test (just check if key is saved)
+    // Other platforms
     status.innerHTML = '<span class="key-status-set">⚠️ การทดสอบอัตโนมัติสำหรับ platform นี้ยังไม่รองรับ</span>';
     toast(`ยังไม่รองรับการทดสอบสำหรับ ${name}`, 'info');
   } catch (e) {
@@ -1076,7 +1150,111 @@ async function testSettingKey(id, slug, name) {
   }
 }
 
+function renderInlineModelPicker(cardId, imgModels, currentEnabled) {
+  const picker = document.getElementById(`modelpicker-${cardId}`);
+  if (!picker) return;
 
+  const enabledSet = new Set(Array.isArray(currentEnabled) ? currentEnabled : []);
+
+  if (!imgModels.length) {
+    picker.innerHTML = `<div class="apikey-model-picker">
+      <p class="amp-empty">ไม่พบ models ที่สร้างภาพได้ — ตรวจสอบสิทธิ์การใช้งาน API Key</p>
+    </div>`;
+    picker.style.display = 'block';
+    return;
+  }
+
+  picker.innerHTML = `
+    <div class="apikey-model-picker">
+      <div class="amp-header">
+        <span class="amp-title">🧠 เลือก Models สำหรับ Prompt Lab</span>
+        <span class="amp-count">${imgModels.length} image models</span>
+      </div>
+      <div class="amp-list" id="amplist-${cardId}">
+        ${imgModels.map(m => {
+          const modelId = (m.name||'').replace('models/', '');
+          const checked = enabledSet.has(modelId) ? ' checked' : '';
+          return `<label class="amp-item${enabledSet.has(modelId) ? ' checked' : ''}">
+            <input type="checkbox" class="amp-cb" value="${esc(modelId)}"
+                   onchange="ampToggleLabel(this)"${checked}/>
+            <span class="amp-model-id">${esc(modelId)}</span>
+            <span class="amp-display-name">${esc(m.displayName||'')}</span>
+          </label>`;
+        }).join('')}
+      </div>
+      <div class="amp-footer">
+        <label style="font-size:.76rem;color:var(--text-3);display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="ampcheckall-${cardId}" onchange="ampCheckAll('${cardId}', this)"
+                 style="accent-color:var(--blue-2)"/>
+          เลือกทั้งหมด
+        </label>
+        <button class="amp-save-btn" onclick="saveModelPicker(${cardId})">
+          💾 บันทึก
+        </button>
+        <span class="amp-save-status" id="amp-status-${cardId}">
+          ${enabledSet.size ? `✓ เปิดใช้งานอยู่ ${enabledSet.size} models` : ''}
+        </span>
+      </div>
+    </div>`;
+
+  picker.style.display = 'block';
+
+  // sync check-all state
+  const allCbs = picker.querySelectorAll('.amp-cb');
+  const allChecked = Array.from(allCbs).every(cb => cb.checked);
+  const checkAllEl = document.getElementById(`ampcheckall-${cardId}`);
+  if (checkAllEl) checkAllEl.checked = allChecked;
+}
+
+function ampToggleLabel(cb) {
+  cb.closest('.amp-item').classList.toggle('checked', cb.checked);
+  // update check-all
+  const list = cb.closest('.amp-list');
+  const allCbs = list?.querySelectorAll('.amp-cb') || [];
+  const allChecked = Array.from(allCbs).every(c => c.checked);
+  const picker = cb.closest('.apikey-model-picker');
+  const checkAllEl = picker?.querySelector('[id^="ampcheckall-"]');
+  if (checkAllEl) checkAllEl.checked = allChecked;
+}
+
+function ampCheckAll(cardId, masterCb) {
+  document.querySelectorAll(`#amplist-${cardId} .amp-cb`).forEach(cb => {
+    cb.checked = masterCb.checked;
+    cb.closest('.amp-item').classList.toggle('checked', masterCb.checked);
+  });
+}
+
+async function saveModelPicker(cardId) {
+  const statusEl = document.getElementById(`amp-status-${cardId}`);
+  const checked  = Array.from(
+    document.querySelectorAll(`#amplist-${cardId} .amp-cb:checked`)
+  ).map(cb => cb.value);
+
+  statusEl.textContent = '⏳ กำลังบันทึก...';
+  try {
+    const res = await fetch(`/api/admin/platforms/${cardId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${A.token}` },
+      body: JSON.stringify({ enabled_models: checked })
+    });
+    const data = await safeJson(res);
+    if (data.ok) {
+      // update data attribute on card
+      const card = document.getElementById(`keycard-${cardId}`);
+      if (card) card.dataset.enabledModels = JSON.stringify(checked);
+      statusEl.textContent = `✅ บันทึก ${checked.length} models แล้ว`;
+      toast(`เปิดใช้งาน ${checked.length} models สำหรับ Prompt Lab`, 'success');
+    } else {
+      statusEl.textContent = '❌ บันทึกไม่ได้';
+      toast(data.error || 'บันทึกไม่ได้', 'error');
+    }
+  } catch (e) {
+    statusEl.textContent = '❌ ' + e.message;
+  }
+}
+
+
+/* showApiTestModal ยังเก็บไว้สำหรับ platform อื่นในอนาคต */
 function showApiTestModal(platformName, ok, message, models) {
   document.getElementById('apikeyTestModalTitle').textContent = `🧪 ทดสอบ — ${platformName}`;
   const statusEl  = document.getElementById('apikeyTestStatus');
@@ -1085,35 +1263,7 @@ function showApiTestModal(platformName, ok, message, models) {
 
   statusEl.className = `apitest-status ${ok ? 'apitest-ok' : 'apitest-fail'}`;
   statusEl.textContent = (ok ? '✅ ' : '❌ ') + message;
-
-  if (ok && models.length > 0) {
-    const imgModels = models.filter(m => {
-      const id = (m.name||'').toLowerCase();
-      const methods = m.supportedGenerationMethods || [];
-      return methods.includes('predict') || id.includes('imagen') || id.includes('image-generation') || id.includes('-image-');
-    });
-    const others = models.filter(m => !imgModels.includes(m));
-
-    tbody.innerHTML = imgModels.map(m => {
-      const modelId = (m.name||'').replace('models/','');
-      const methods = m.supportedGenerationMethods || [];
-      const tags = methods.map(met =>
-        met === 'generateContent' ? `<span class="method-tag tag-gc">generateContent</span>` :
-        met === 'predict'         ? `<span class="method-tag tag-pred">predict</span>` :
-        `<span class="method-tag tag-misc">${esc(met)}</span>`
-      ).join('');
-      return `<tr>
-        <td><code style="font-size:.76rem">${esc(modelId)}</code></td>
-        <td style="font-size:.82rem">${esc(m.displayName||'')}</td>
-        <td>${tags}</td>
-      </tr>`;
-    }).join('') + (others.length ? `<tr><td colspan="3" style="color:var(--text-3);font-size:.78rem;padding:8px 12px">+ ${others.length} models อื่น ๆ (text/embedding)</td></tr>` : '');
-
-    modelsEl.style.display = 'block';
-  } else {
-    modelsEl.style.display = 'none';
-  }
-
+  modelsEl.style.display = 'none';
   document.getElementById('apikeyTestModal').removeAttribute('hidden');
 }
 

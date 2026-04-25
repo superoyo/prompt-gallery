@@ -910,6 +910,54 @@ body { background: var(--bg); color: var(--text); display: flex; overflow: hidde
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Model checkbox ─────────────────────────────────────────────── */
+.gt2-model-cb { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
+
+/* ── Inline Model Picker (API Keys page) ────────────────────────── */
+.apikey-model-picker {
+  margin-top: 14px;
+  border-top: 1.5px solid var(--border);
+  padding-top: 14px;
+  animation: fadeSlideIn .18s ease;
+}
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.amp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.amp-title   { font-weight: 700; font-size: .86rem; color: var(--text); }
+.amp-count   { font-size: .75rem; color: var(--text-3); background: var(--bg-3);
+               border: 1px solid var(--border); border-radius: 99px; padding: 2px 9px; }
+.amp-list    { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px;
+               max-height: 280px; overflow-y: auto; }
+.amp-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; border-radius: 8px;
+  border: 1.5px solid var(--border); background: var(--bg);
+  cursor: pointer; transition: .12s;
+  user-select: none;
+}
+.amp-item:hover  { border-color: var(--blue-3); background: #eff6ff; }
+.amp-item.checked { border-color: var(--blue-3); background: #eff6ff; }
+.amp-cb          { width: 16px; height: 16px; flex-shrink: 0; cursor: pointer;
+                   accent-color: var(--blue-2); }
+.amp-model-id    { font-family: 'Fira Code', monospace; font-size: .76rem;
+                   color: var(--text); flex: 1; min-width: 0; overflow: hidden;
+                   text-overflow: ellipsis; white-space: nowrap; }
+.amp-display-name { font-size: .75rem; color: var(--text-3); flex-shrink: 0; }
+.amp-footer      { display: flex; align-items: center; gap: 10px; }
+.amp-save-btn    {
+  background: var(--grad-btn); color: white; border: none; border-radius: 9px;
+  padding: 8px 18px; font-size: .82rem; font-weight: 700; cursor: pointer;
+  font-family: inherit; transition: .15s; white-space: nowrap;
+}
+.amp-save-btn:hover { opacity: .88; }
+.amp-save-status { font-size: .78rem; color: var(--text-3); }
+.amp-empty { font-size: .82rem; color: var(--text-3); padding: 10px 0; }
+
 /* ── Responsive ────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sidebar { display: none; }

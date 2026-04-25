@@ -195,9 +195,10 @@ def init_db():
                 sort_order  INTEGER DEFAULT 0,
                 cost_per_gen REAL DEFAULT 0.0,
                 icon        TEXT DEFAULT '🤖',
-                docs_guide  TEXT DEFAULT '',
-                extra_config TEXT DEFAULT '{}',
-                created_at  TEXT NOT NULL
+                docs_guide      TEXT DEFAULT '',
+                extra_config    TEXT DEFAULT '{}',
+                enabled_models  TEXT DEFAULT '[]',
+                created_at      TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS prompt_history (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -220,13 +221,21 @@ def init_db():
         # migrate existing users table (add columns if missing)
         cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
         for col, definition in [
-            ('email',         'TEXT'),          # UNIQUE ไม่รองรับ ALTER TABLE ใน SQLite
+            ('email',         'TEXT'),
             ('is_admin',      'INTEGER NOT NULL DEFAULT 0'),
             ('is_disabled',   'INTEGER NOT NULL DEFAULT 0'),
             ('last_login_at', 'TEXT'),
         ]:
             if col not in cols:
                 conn.execute(f'ALTER TABLE users ADD COLUMN {col} {definition}')
+
+        # migrate ai_platforms table
+        pcols = {r[1] for r in conn.execute("PRAGMA table_info(ai_platforms)")}
+        for col, definition in [
+            ('enabled_models', "TEXT DEFAULT '[]'"),
+        ]:
+            if col not in pcols:
+                conn.execute(f'ALTER TABLE ai_platforms ADD COLUMN {col} {definition}')
 
     _ensure_super_admin()
     _seed_categories()
@@ -632,10 +641,10 @@ def _gen_leonardo(api_key, prompt, neg_prompt, size_key):
             raise Exception('Leonardo generation failed')
     raise Exception('Leonardo generation timed out (90s)')
 
-def _gen_google_imagen(api_key: str, prompt: str, size_key: str):
+def _gen_google_imagen(api_key: str, prompt: str, size_key: str, model_override: str = None):
     """
     Google Image Generation ผ่าน Gemini Developer API (AI Studio key AIza...)
-    ลองโมเดลตามลำดับโดยใช้ generateContent endpoint เท่านั้น:
+    ถ้า model_override ระบุ จะใช้โมเดลนั้นโดยตรง มิฉะนั้นลองตามลำดับ:
       1. gemini-2.0-flash-preview-image-generation
       2. gemini-2.0-flash-exp
       3. gemini-2.0-flash  (with responseModalities IMAGE+TEXT)
@@ -652,11 +661,14 @@ def _gen_google_imagen(api_key: str, prompt: str, size_key: str):
                         return data
         return None
 
-    models_to_try = [
-        ('gemini-2.0-flash-preview-image-generation', ['IMAGE']),
-        ('gemini-2.0-flash-exp',                      ['IMAGE', 'TEXT']),
-        ('gemini-2.0-flash',                          ['IMAGE', 'TEXT']),
-    ]
+    if model_override:
+        models_to_try = [(model_override, ['IMAGE', 'TEXT'])]
+    else:
+        models_to_try = [
+            ('gemini-2.0-flash-preview-image-generation', ['IMAGE']),
+            ('gemini-2.0-flash-exp',                      ['IMAGE', 'TEXT']),
+            ('gemini-2.0-flash',                          ['IMAGE', 'TEXT']),
+        ]
 
     errors = {}
     for model_name, modalities in models_to_try:
@@ -687,7 +699,7 @@ def _gen_google_imagen(api_key: str, prompt: str, size_key: str):
     )
 
 
-def _call_platform_api(platform, prompt, neg_prompt, size_key, quality):
+def _call_platform_api(platform, prompt, neg_prompt, size_key, quality, model_override=None):
     """Route to correct generator. Returns (filename, cost_usd, tokens)."""
     s = platform['slug']
     k = platform['api_key']
@@ -698,7 +710,7 @@ def _call_platform_api(platform, prompt, neg_prompt, size_key, quality):
     if s == 'ideogram-v2':          return _gen_ideogram(k, prompt, neg_prompt, size_key)
     if s == 'flux-replicate':       return _gen_flux_replicate(k, prompt, size_key)
     if s == 'leonardo-ai':          return _gen_leonardo(k, prompt, neg_prompt, size_key)
-    if s == 'google-imagen3':       return _gen_google_imagen(k, prompt, size_key)
+    if s == 'google-imagen3':       return _gen_google_imagen(k, prompt, size_key, model_override)
     raise Exception(f'Platform "{s}" ยังไม่รองรับการ generate อัตโนมัติ — ใช้งานบน platform นั้นโดยตรง')
 
 
@@ -1214,15 +1226,19 @@ def admin_reorder_categories():
 
 @app.route('/api/platforms', methods=['GET'])
 def get_platforms():
-    show_all = request.args.get('all', '0') == '1'
     with get_db() as conn:
-        q = ('SELECT id,name,slug,description,icon,is_enabled,is_visible,sort_order,model,cost_per_gen '
-             'FROM ai_platforms WHERE is_visible=1')
-        if not show_all:
-            q += ' AND is_enabled=1'
-        q += ' ORDER BY sort_order, name'
+        q = ('SELECT id,name,slug,description,icon,is_enabled,is_visible,sort_order,model,cost_per_gen,enabled_models '
+             'FROM ai_platforms WHERE is_visible=1 AND is_enabled=1 ORDER BY sort_order, name')
         rows = conn.execute(q).fetchall()
-    return jsonify([row_to_dict(r) for r in rows])
+    result = []
+    for r in rows:
+        d = row_to_dict(r)
+        try:
+            d['enabled_models'] = json.loads(d.get('enabled_models') or '[]')
+        except Exception:
+            d['enabled_models'] = []
+        result.append(d)
+    return jsonify(result)
 
 
 # ─── Prompt Lab Routes ────────────────────────────────────────────────────────
@@ -1236,6 +1252,7 @@ def lab_generate():
     neg_prompt     = (data.get('negative_prompt') or '').strip()
     size_key       = data.get('size', '1:1')
     quality        = data.get('quality', 'standard')
+    model_override = (data.get('model') or '').strip() or None
 
     if not prompt_text:
         return jsonify({'error': 'กรุณาใส่ prompt'}), 400
@@ -1276,7 +1293,7 @@ def lab_generate():
 
         try:
             filename, cost, api_tokens = _call_platform_api(
-                dict(platform), prompt_text, neg_prompt, size_key, quality
+                dict(platform), prompt_text, neg_prompt, size_key, quality, model_override
             )
             if api_tokens > 0:
                 tokens = api_tokens
@@ -1372,6 +1389,10 @@ def admin_list_platforms():
         d['api_key_masked'] = ('••••••' + key[-6:]) if len(key) > 6 else ('••' if key else '')
         d['has_key'] = bool(key.strip())
         d.pop('api_key', None)
+        try:
+            d['enabled_models'] = json.loads(d.get('enabled_models') or '[]')
+        except Exception:
+            d['enabled_models'] = []
         result.append(d)
     return jsonify(result)
 
@@ -1424,8 +1445,11 @@ def admin_update_platform(pid):
         if 'api_key' in data:
             fields['api_key']    = data['api_key']
             fields['is_enabled'] = 1 if data['api_key'].strip() else 0
-        if 'is_visible'   in data: fields['is_visible']   = int(data['is_visible'])
-        if 'cost_per_gen' in data: fields['cost_per_gen'] = float(data['cost_per_gen'])
+        if 'is_visible'    in data: fields['is_visible']    = int(data['is_visible'])
+        if 'cost_per_gen'  in data: fields['cost_per_gen']  = float(data['cost_per_gen'])
+        if 'enabled_models' in data:
+            em = data['enabled_models']
+            fields['enabled_models'] = json.dumps(em if isinstance(em, list) else [])
         if fields:
             set_cl = ', '.join(f'{k}=?' for k in fields)
             conn.execute(f'UPDATE ai_platforms SET {set_cl} WHERE id=?',

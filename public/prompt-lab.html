@@ -92,6 +92,13 @@
         </div>
       </div>
 
+      <!-- Model Selector (shown only when platform has enabled_models) -->
+      <div class="setting-group" id="modelSelectorGroup" style="display:none">
+        <label class="setting-label">🧠 Model</label>
+        <select id="modelSelect" class="setting-select" onchange="lab.selectedModel = this.value; updateGenerateBtn()">
+        </select>
+      </div>
+
       <!-- Size -->
       <div class="setting-group">
         <label class="setting-label">📐 ขนาด</label>
