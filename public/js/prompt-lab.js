@@ -84,26 +84,13 @@ function estimateTokens(text) {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   PLATFORM DROPDOWN
+   COMBINED AI + MODEL SELECTOR
    ══════════════════════════════════════════════════════════════ */
-async function loadPlatforms() {
-  try {
-    // fetch only enabled platforms (is_enabled=1 with API key configured)
-    const data = await fetch('/api/platforms').then(r => r.json());
-    lab.platforms = Array.isArray(data) ? data : [];
-    renderPlatformMenu();
-    populateHistoryFilter();
-  } catch (e) {
-    document.getElementById('platformMenuList').innerHTML =
-      `<div class="pm-loading">โหลดไม่ได้: ${le(e.message)}</div>`;
-  }
-}
 
-/* ── แยก platform ที่พร้อมใช้จริง ──
-   - มี API key (is_enabled=1, กรองมาจาก server แล้ว)
-   - ถ้าเป็น google-imagen3: ต้องมี enabled_models อย่างน้อย 1 model
-   - platform อื่น: แค่มี API key ก็พอ
-*/
+/* helpers: รองรับทั้ง format เก่า (string) และใหม่ ({id,displayName}) */
+function mId(m)   { return typeof m === 'object' ? (m.id || '') : (m || ''); }
+function mName(m) { return typeof m === 'object' ? (m.displayName || m.id || '') : m; }
+
 function isPlatformReady(p) {
   if (p.slug === 'google-imagen3') {
     return Array.isArray(p.enabled_models) && p.enabled_models.length > 0;
@@ -111,128 +98,128 @@ function isPlatformReady(p) {
   return true;
 }
 
-function renderPlatformMenu() {
-  const list = document.getElementById('platformMenuList');
-  const ready = lab.platforms.filter(isPlatformReady);
+async function loadPlatforms() {
+  try {
+    const data = await fetch('/api/platforms').then(r => r.json());
+    lab.platforms = Array.isArray(data) ? data : [];
+    renderAiPanel();
+    populateHistoryFilter();
+  } catch (e) {
+    document.getElementById('aiPanelContent').innerHTML =
+      `<div class="ap-empty">โหลดไม่ได้: ${le(e.message)}</div>`;
+  }
+}
+
+/* วาด panel เนื้อหา (platform groups + model rows) */
+function renderAiPanel() {
+  const content = document.getElementById('aiPanelContent');
+  const ready   = lab.platforms.filter(isPlatformReady);
 
   if (!ready.length) {
     document.getElementById('noPlatformNotice').style.display = 'block';
-    list.innerHTML = '<div class="pm-loading">ยังไม่มี AI platform ที่พร้อมใช้งาน</div>';
+    content.innerHTML = '<div class="ap-empty">ยังไม่มี AI ที่พร้อมใช้งาน<br>ติดต่อ Admin เพื่อตั้งค่า API Key</div>';
     return;
   }
   document.getElementById('noPlatformNotice').style.display = 'none';
 
-  list.innerHTML = ready.map(p => `
-    <div class="pm-item ${p.slug === lab.selectedSlug ? 'selected' : ''}"
-         onclick="selectPlatform('${le(p.slug)}')">
-      <span class="pm-icon">${labIcon(p.icon)}</span>
-      <div class="pm-info">
-        <div class="pm-name">${le(p.name)}</div>
-        <div class="pm-desc">${le(p.description || '')}</div>
-      </div>
-      <div class="pm-right">
-        <div class="pm-cost">$${(p.cost_per_gen || 0).toFixed(3)}/ภาพ</div>
-        <div style="margin-top:3px"><span class="pm-badge-ok">✓ พร้อมใช้</span></div>
-      </div>
-    </div>
-  `).join('');
-
-  // auto-select first ready platform if none selected
-  if (!lab.selectedSlug || !ready.find(p => p.slug === lab.selectedSlug)) {
-    selectPlatform(ready[0].slug, false);
-  }
-}
-
-function selectPlatform(slug, closeMenu = true) {
-  const p = lab.platforms.find(pl => pl.slug === slug);
-  if (!p) return;
-  lab.selectedSlug = slug;
-  lab.selectedModel = null;
-
-  // update button
-  document.getElementById('pdIcon').innerHTML = labIcon(p.icon, '1.4em');
-  document.getElementById('pdName').textContent = p.name;
-  document.getElementById('pdCost').textContent = `$${(p.cost_per_gen || 0).toFixed(3)}/ภาพ`;
-
-  // highlight in menu
-  document.querySelectorAll('.pm-item').forEach(el => el.classList.remove('selected'));
-  document.querySelectorAll('.pm-item').forEach(el => {
-    if (el.querySelector('.pm-name')?.textContent === p.name) el.classList.add('selected');
-  });
-
-  // show model selector if platform has enabled_models
-  renderModelSelector(p);
-
-  if (closeMenu) closePlatformMenu();
-  updateGenerateBtn();
-}
-
-/* helpers: รองรับทั้ง format เก่า (string) และใหม่ ({id,displayName}) */
-function mId(m)   { return typeof m === 'object' ? (m.id || '') : (m || ''); }
-function mName(m) { return typeof m === 'object' ? (m.displayName || m.id || '') : m; }
-
-function renderModelSelector(platform) {
-  const group = document.getElementById('modelSelectorGroup');
-  const list  = document.getElementById('modelPickList');
-  if (!group || !list) return;
-
-  const models = Array.isArray(platform.enabled_models) ? platform.enabled_models : [];
-  if (!models.length) {
-    group.style.display = 'none';
-    lab.selectedModel = null;
-    return;
-  }
-
-  list.innerHTML = models.map((m, i) => {
-    const id   = mId(m);
-    const name = mName(m);
-    // ถ้า displayName กับ id เหมือนกัน ให้แสดงแค่บรรทัดเดียว
-    const showId = name !== id;
-    return `<div class="model-pick-item${i === 0 ? ' selected' : ''}"
-                 onclick="selectModel('${le(id)}', this)"
-                 data-model-id="${le(id)}">
-      <span class="mp-name">${le(name)}</span>
-      ${showId ? `<span class="mp-id">${le(id)}</span>` : ''}
+  content.innerHTML = ready.map(p => {
+    const models = Array.isArray(p.enabled_models) ? p.enabled_models : [];
+    // แถว platform header
+    const header = `<div class="ap-platform-row">
+      <span class="ap-platform-icon">${labIcon(p.icon, '1em')}</span>
+      ${le(p.name)}
     </div>`;
+    // ถ้าไม่มี models → 1 row ใช้ platform โดยตรง
+    if (!models.length) {
+      const isSel = p.slug === lab.selectedSlug && !lab.selectedModel;
+      return header + `<div class="ap-model-row${isSel ? ' selected' : ''}"
+           onclick="pickModel('${le(p.slug)}', null, this)">
+        <span class="ap-radio"><span class="ap-radio-dot"></span></span>
+        <span class="ap-model-info">
+          <span class="ap-model-name">${le(p.name)}</span>
+        </span>
+      </div>`;
+    }
+    // มี models → แสดงแต่ละ model
+    return header + models.map(m => {
+      const id   = mId(m);
+      const name = mName(m);
+      const isSel = p.slug === lab.selectedSlug && lab.selectedModel === id;
+      const showId = name !== id;
+      return `<div class="ap-model-row${isSel ? ' selected' : ''}"
+           onclick="pickModel('${le(p.slug)}', '${le(id)}', this)">
+        <span class="ap-radio"><span class="ap-radio-dot"></span></span>
+        <span class="ap-model-info">
+          <span class="ap-model-name">${le(name)}</span>
+          ${showId ? `<span class="ap-model-id">${le(id)}</span>` : ''}
+        </span>
+      </div>`;
+    }).join('');
   }).join('');
 
-  lab.selectedModel = mId(models[0]);
-  group.style.display = '';
+  // auto-select ถ้ายังไม่มี selection
+  if (!lab.selectedSlug) {
+    const first = ready[0];
+    const models = Array.isArray(first.enabled_models) ? first.enabled_models : [];
+    pickModel(first.slug, models.length ? mId(models[0]) : null, null, false);
+  }
 }
 
-function selectModel(modelId, el) {
-  document.querySelectorAll('.model-pick-item').forEach(m => m.classList.remove('selected'));
-  el.classList.add('selected');
-  lab.selectedModel = modelId;
+/* เลือก platform + model พร้อมกัน */
+function pickModel(slug, modelId, el, closePanel = true) {
+  const p = lab.platforms.find(pl => pl.slug === slug);
+  if (!p) return;
+  lab.selectedSlug  = slug;
+  lab.selectedModel = modelId || null;
+
+  // อัป pill label
+  updatePillLabel();
+
+  // highlight row ใน panel
+  document.querySelectorAll('.ap-model-row').forEach(r => r.classList.remove('selected'));
+  if (el) el.classList.add('selected');
+
+  if (closePanel) closeModelMenu();
   updateGenerateBtn();
 }
 
-function togglePlatformMenu(e) {
+/* อัปเดต pill แสดงชื่อปัจจุบัน */
+function updatePillLabel() {
+  const p = lab.platforms.find(pl => pl.slug === lab.selectedSlug);
+  if (!p) return;
+  const iconEl     = document.getElementById('aiPillIcon');
+  const modelEl    = document.getElementById('aiPillModel');
+  const platformEl = document.getElementById('aiPillPlatform');
+  if (iconEl)     iconEl.innerHTML  = labIcon(p.icon, '1.1em');
+  if (modelEl)    modelEl.textContent = lab.selectedModel
+    ? (mName(p.enabled_models?.find(m => mId(m) === lab.selectedModel)) || lab.selectedModel)
+    : p.name;
+  if (platformEl) platformEl.textContent = lab.selectedModel ? p.name : '';
+}
+
+function toggleModelMenu(e) {
   e?.stopPropagation();
-  const menu = document.getElementById('platformMenu');
-  const btn  = document.getElementById('platformDropdownBtn');
-  const arrow = document.getElementById('pdArrow');
+  const panel = document.getElementById('aiPanel');
+  const btn   = document.getElementById('aiPillBtn');
   if (lab.menuOpen) {
-    closePlatformMenu();
+    closeModelMenu();
   } else {
-    menu.style.display = 'block';
+    panel.style.display = 'block';
     btn.classList.add('open');
-    arrow.classList.add('flipped');
     lab.menuOpen = true;
   }
 }
 
-function closePlatformMenu() {
-  document.getElementById('platformMenu').style.display = 'none';
-  document.getElementById('platformDropdownBtn').classList.remove('open');
-  document.getElementById('pdArrow').classList.remove('flipped');
+function closeModelMenu() {
+  document.getElementById('aiPanel').style.display = 'none';
+  document.getElementById('aiPillBtn').classList.remove('open');
   lab.menuOpen = false;
 }
 
-// Close dropdown on outside click
+// ปิด panel เมื่อคลิกข้างนอก
 document.addEventListener('click', (e) => {
-  if (lab.menuOpen && !document.getElementById('platformDropdown').contains(e.target)) {
-    closePlatformMenu();
+  if (lab.menuOpen && !document.getElementById('aiPillWrap').contains(e.target)) {
+    closeModelMenu();
   }
 });
 

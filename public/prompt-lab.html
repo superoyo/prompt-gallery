@@ -47,7 +47,7 @@
       <p class="lab-sub">พิมพ์ prompt แล้วเลือก AI ที่ต้องการ</p>
     </div>
 
-    <!-- Prompt Card -->
+    <!-- Prompt Card (รวม AI selector ไว้ด้วย) -->
     <div class="prompt-card">
       <div class="prompt-card-header">
         <span class="prompt-card-label">✍️ Prompt</span>
@@ -59,44 +59,40 @@
         placeholder="A cinematic portrait of a young woman standing in a neon-lit alley, rain-soaked streets reflecting colorful lights, shallow depth of field, 85mm lens, photorealistic, 8K..."
         rows="6"
       ></textarea>
-      <div class="neg-row">
-        <button class="neg-toggle-btn" id="negToggleBtn" onclick="toggleNeg()">
-          <span id="negToggleIcon">＋</span> Negative Prompt
-        </button>
-        <div id="negArea" style="display:none;margin-top:10px">
-          <textarea id="negInput" class="prompt-textarea prompt-textarea-neg"
-            placeholder="blurry, low quality, distorted, watermark, bad anatomy..."
-            rows="2"></textarea>
+
+      <!-- Negative prompt -->
+      <div id="negArea" style="display:none;margin-top:8px">
+        <textarea id="negInput" class="prompt-textarea prompt-textarea-neg"
+          placeholder="blurry, low quality, distorted, watermark, bad anatomy..."
+          rows="2"></textarea>
+      </div>
+
+      <!-- Footer bar: AI pill + neg toggle -->
+      <div class="prompt-footer">
+        <!-- Combined AI + Model selector pill -->
+        <div class="ai-pill-wrap" id="aiPillWrap">
+          <button class="ai-pill" id="aiPillBtn" onclick="toggleModelMenu(event)">
+            <span class="ai-pill-icon" id="aiPillIcon">—</span>
+            <span class="ai-pill-text">
+              <span class="ai-pill-model" id="aiPillModel">เลือก AI...</span>
+              <span class="ai-pill-platform" id="aiPillPlatform"></span>
+            </span>
+            <svg class="ai-pill-chevron" id="aiPillChevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 6 8 10 12 6"/></svg>
+          </button>
+          <!-- Floating panel -->
+          <div class="ai-panel" id="aiPanel" style="display:none">
+            <div id="aiPanelContent"><div class="pm-loading">กำลังโหลด...</div></div>
+          </div>
         </div>
+
+        <button class="neg-toggle-btn" id="negToggleBtn" onclick="toggleNeg()">
+          <span id="negToggleIcon">＋</span> Negative
+        </button>
       </div>
     </div>
 
-    <!-- Settings Card: AI dropdown + size + quality -->
+    <!-- Settings Card: size + quality only -->
     <div class="settings-card">
-
-      <!-- Platform Dropdown -->
-      <div class="setting-group setting-group-ai">
-        <label class="setting-label">🤖 AI Platform</label>
-        <div class="platform-dropdown" id="platformDropdown">
-          <button class="platform-dropdown-btn" id="platformDropdownBtn" onclick="togglePlatformMenu(event)">
-            <span class="pd-icon" id="pdIcon">—</span>
-            <span class="pd-name" id="pdName">เลือก AI...</span>
-            <span class="pd-cost" id="pdCost"></span>
-            <svg class="pd-arrow" id="pdArrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          <div class="platform-menu" id="platformMenu" style="display:none">
-            <div id="platformMenuList">
-              <div class="pm-loading">กำลังโหลด...</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Model Selector (shown only when platform has enabled_models) -->
-      <div class="setting-group" id="modelSelectorGroup" style="display:none">
-        <label class="setting-label">🧠 Model</label>
-        <div class="model-pick-list" id="modelPickList"></div>
-      </div>
 
       <!-- Size -->
       <div class="setting-group">
