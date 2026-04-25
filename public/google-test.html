@@ -414,19 +414,20 @@ async function listModels() {
   }
 }
 
-// Model สร้างภาพได้จริงต้องเป็นหนึ่งในนี้:
-// 1. มี predict method → Imagen models
-// 2. ชื่อ model มีคำว่า "image" หรือ "imagen"
-//    (เช่น gemini-2.0-flash-preview-image-generation, imagen-3.0-generate-002)
-// ไม่ใช่แค่ generateContent ทั่วไป (gemini-2.5-flash, gemini-1.5-pro ฯลฯ)
+// Model สร้างภาพได้จริง — ตรวจทั้ง model ID และ displayName
+// เพราะ Google บางโมเดลใช้ชื่อแบบ version-based (gemini-2.5-flash-preview-05-20)
+// แต่ displayName จะบอกว่า "Gemini 2.5 Flash Image …"
 function isImageModel(m) {
-  const modelId = (m.name || '').toLowerCase();
+  const name   = (m.name        || '').toLowerCase();
+  const dname  = (m.displayName || '').toLowerCase();
   const methods = m.supportedGenerationMethods || [];
+  const anyStr = name + ' ' + dname;
   return methods.includes('predict') ||
-         modelId.includes('imagen') ||
-         modelId.includes('image-generation') ||
-         modelId.includes('-image-') ||
-         modelId.endsWith('-image');
+    anyStr.includes('imagen') ||
+    anyStr.includes('image-generation') ||
+    anyStr.includes('image generation') ||
+    anyStr.includes('-image') ||       // -image, -image-generation, -image-preview …
+    anyStr.includes(' image');         // "Gemini 2.5 Flash Image …"
 }
 
 function modelRow(m) {
@@ -451,8 +452,11 @@ function renderModelsTable(models) {
   const otherModels = models.filter(m => !isImageModel(m));
 
   // sort each group: imagen → gemini → rest
-  const sortScore = n => n.includes('imagen') ? 0 : n.includes('gemini') ? 1 : 2;
-  imgModels.sort((a, b)   => sortScore(a.name || '') - sortScore(b.name || ''));
+  const sortScore = m => {
+    const s = (m.name||'').toLowerCase() + ' ' + (m.displayName||'').toLowerCase();
+    return s.includes('imagen') ? 0 : s.includes('gemini') ? 1 : 2;
+  };
+  imgModels.sort((a, b)   => sortScore(a) - sortScore(b));
   otherModels.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
   $('modelsListTitle').textContent =

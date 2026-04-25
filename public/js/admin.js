@@ -762,11 +762,19 @@ function gt2_toggleKey() {
   i.type = i.type === 'password' ? 'text' : 'password';
 }
 
-function gt2_isImageModel(name, methods) {
-  const n = (name || '').toLowerCase();
-  return (methods || []).includes('predict') ||
-    n.includes('imagen') || n.includes('image-generation') ||
-    n.includes('-image-') || n.endsWith('-image');
+function gt2_isImageModel(m) {
+  // ตรวจทั้ง model ID และ displayName เพราะ Google บางโมเดลใช้ชื่อแบบ
+  // version-based (gemini-2.5-flash-preview-05-20) แต่ displayName บอก "Image"
+  const name  = (m.name        || '').toLowerCase();
+  const dname = (m.displayName || '').toLowerCase();
+  const methods = m.supportedGenerationMethods || [];
+  const anyStr = name + ' ' + dname;
+  return methods.includes('predict') ||
+    anyStr.includes('imagen') ||
+    anyStr.includes('image-generation') ||
+    anyStr.includes('image generation') ||
+    anyStr.includes('-image') ||          // -image, -image-generation, -image-preview …
+    anyStr.includes(' image');            // "Gemini 2.5 Flash Image …"
 }
 
 function gt2_modelRow(m, useFn, enabledSet) {
@@ -816,12 +824,15 @@ async function gt2_listModels() {
       return;
     }
     const models    = data.models || [];
-    const imgModels = models.filter(m => gt2_isImageModel(m.name, m.supportedGenerationMethods));
-    const others    = models.filter(m => !gt2_isImageModel(m.name, m.supportedGenerationMethods));
+    const imgModels = models.filter(m => gt2_isImageModel(m));
+    const others    = models.filter(m => !gt2_isImageModel(m));
 
     imgModels.sort((a,b) => {
-      const s = n => n.includes('imagen') ? 0 : n.includes('gemini') ? 1 : 2;
-      return s(a.name||'') - s(b.name||'');
+      const score = m => {
+        const s = (m.name||'').toLowerCase() + ' ' + (m.displayName||'').toLowerCase();
+        return s.includes('imagen') ? 0 : s.includes('gemini') ? 1 : 2;
+      };
+      return score(a) - score(b);
     });
 
     // Build Set of currently enabled model IDs
@@ -1120,12 +1131,7 @@ async function testSettingKey(id, slug, name) {
       const data = await safeJson(res);
 
       if (data.ok) {
-        const imgModels = (data.models || []).filter(m => {
-          const n = (m.name||'').toLowerCase();
-          const methods = m.supportedGenerationMethods || [];
-          return methods.includes('predict') || n.includes('imagen') ||
-                 n.includes('image-generation') || n.includes('-image-');
-        });
+        const imgModels = (data.models || []).filter(m => gt2_isImageModel(m));
         status.innerHTML = `<span class="key-status-ok">✅ API Key ใช้งานได้ — พบ ${imgModels.length} image models</span>`;
         // get current enabled_models from card data attribute
         const card = document.getElementById(`keycard-${id}`);
