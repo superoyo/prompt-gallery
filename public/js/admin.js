@@ -59,7 +59,8 @@ function navigateTo(page) {
   else if (page === 'platforms') loadPlatforms();
   else if (page === 'logs')      loadLogs(1);
   else if (page === 'settings-apikeys') loadSettingsApiKeys();
-  else if (page === 'settings-tests')   { /* static page, no load needed */ }
+  else if (page === 'settings-tests')   { /* static page */ }
+  else if (page === 'test-google')      { /* static page, JS handles itself */ }
 }
 
 /* ── Dashboard ──────────────────────────────────────────────────── */
@@ -736,6 +737,145 @@ function fmt(iso) {
       hour: '2-digit', minute: '2-digit'
     });
   } catch { return iso; }
+}
+
+/* ── Embedded: Google AI Studio Test ────────────────────────────── */
+function gt2_toggleKey() {
+  const i = document.getElementById('gt2_apiKey');
+  i.type = i.type === 'password' ? 'text' : 'password';
+}
+
+function gt2_isImageModel(name, methods) {
+  const n = (name || '').toLowerCase();
+  return (methods || []).includes('predict') ||
+    n.includes('imagen') || n.includes('image-generation') ||
+    n.includes('-image-') || n.endsWith('-image');
+}
+
+function gt2_modelRow(m, useFn) {
+  const modelId = (m.name || '').replace('models/', '');
+  const methods = m.supportedGenerationMethods || [];
+  const tags = methods.map(met =>
+    met === 'generateContent' ? `<span class="method-tag tag-gc">generateContent</span>` :
+    met === 'predict'         ? `<span class="method-tag tag-pred">predict</span>` :
+    `<span class="method-tag tag-misc">${esc(met)}</span>`
+  ).join('');
+  return `<tr>
+    <td><code style="font-size:.74rem">${esc(modelId)}</code></td>
+    <td style="font-size:.8rem">${esc(m.displayName || '')}</td>
+    <td>${tags}</td>
+    <td>${useFn ? `<button class="tc-btn-use" onclick="${useFn}('${esc(modelId)}')">ใช้</button>` : ''}</td>
+  </tr>`;
+}
+
+async function gt2_listModels() {
+  const apiKey = document.getElementById('gt2_apiKey').value.trim();
+  if (!apiKey) { alert('ใส่ API Key ก่อน'); return; }
+  const btn = document.getElementById('gt2_listBtn');
+  btn.disabled = true; btn.textContent = '⏳ กำลังโหลด...';
+  try {
+    const res  = await fetch('/api/test/google-list-models', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey })
+    });
+    const data = await safeJson(res);
+    const area  = document.getElementById('gt2_modelsArea');
+    const title = document.getElementById('gt2_modelsTitle');
+    const imgBody   = document.getElementById('gt2_imgBody');
+    const otherBody = document.getElementById('gt2_otherBody');
+    area.style.display = 'block';
+
+    if (!data.ok) {
+      title.textContent = '';
+      imgBody.innerHTML = `<tr><td colspan="4" style="color:#be123c;padding:10px">${esc(data.error)}</td></tr>`;
+      return;
+    }
+    const models    = data.models || [];
+    const imgModels = models.filter(m => gt2_isImageModel(m.name, m.supportedGenerationMethods));
+    const others    = models.filter(m => !gt2_isImageModel(m.name, m.supportedGenerationMethods));
+
+    imgModels.sort((a,b) => {
+      const s = n => n.includes('imagen') ? 0 : n.includes('gemini') ? 1 : 2;
+      return s(a.name||'') - s(b.name||'');
+    });
+    title.textContent = `พบ ${imgModels.length} models ที่สร้างภาพได้${others.length ? ` (+ ${others.length} อื่นๆ)` : ''}`;
+    imgBody.innerHTML = imgModels.map(m => gt2_modelRow(m, 'gt2_useModel')).join('') +
+      (others.length ? `<tr><td colspan="4" style="text-align:center;padding:8px">
+        <button class="tc-debug-btn" onclick="gt2_toggleOthers()">▼ ดู ${others.length} models อื่นๆ</button>
+      </td></tr>` : '');
+    otherBody.innerHTML = others.map(m => gt2_modelRow(m, 'gt2_useModel')).join('');
+    otherBody.style.display = 'none';
+  } catch(e) { alert('Error: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = '🔍 ดู Models'; }
+}
+
+function gt2_toggleOthers() {
+  const b = document.getElementById('gt2_otherBody');
+  b.style.display = b.style.display === 'none' ? '' : 'none';
+}
+
+function gt2_useModel(modelId) {
+  document.getElementById('gt2_model').value = modelId;
+  document.getElementById('gt2_model').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function gt2_generate() {
+  const apiKey = document.getElementById('gt2_apiKey').value.trim();
+  if (!apiKey) { alert('ใส่ API Key ก่อน'); return; }
+  const prompt = document.getElementById('gt2_prompt').value.trim();
+  if (!prompt)  { alert('ใส่ prompt ก่อน'); return; }
+  const model  = document.getElementById('gt2_model').value.trim() || 'gemini-2.0-flash-exp';
+  const ratio  = document.getElementById('gt2_ratio').value;
+  const count  = parseInt(document.getElementById('gt2_count').value);
+  const btn    = document.getElementById('gt2_genBtn');
+
+  btn.disabled = true; btn.textContent = '⏳ กำลัง generate...';
+  const ra = document.getElementById('gt2_resultArea');
+  ra.style.display = 'block';
+  document.getElementById('gt2_statusBadge').innerHTML = '<span class="gt-badge-wait">⏳ รอผล...</span>';
+  document.getElementById('gt2_resultContent').innerHTML =
+    `<p style="color:var(--text-2);font-size:.84rem">ส่งคำขอไปยัง <code style="color:var(--blue-2)">${esc(model)}</code>...</p>`;
+
+  try {
+    const res  = await fetch('/api/test/google-imagen', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey, model, prompt, aspect_ratio: ratio, sample_count: count })
+    });
+    gt2_renderResult(await safeJson(res));
+  } catch(e) { gt2_renderResult({ ok: false, error: e.message }); }
+  finally { btn.disabled = false; btn.textContent = '🚀 Generate & Test'; }
+}
+
+function gt2_renderResult(data) {
+  const badge   = document.getElementById('gt2_statusBadge');
+  const content = document.getElementById('gt2_resultContent');
+  if (data.ok) {
+    badge.innerHTML = '<span class="gt-badge-ok">✅ สำเร็จ</span>';
+    const imgs = data.images || [];
+    let html = `<p style="font-size:.82rem;color:var(--text-2);text-align:center;margin-bottom:12px">
+      สำเร็จด้วย model: <b style="color:var(--green)">${esc(data.model_used)}</b></p>`;
+    if (imgs.length) {
+      html += `<div class="tc-img-grid">` + imgs.map((b64,i) =>
+        `<div>
+          <img src="data:image/jpeg;base64,${b64}" />
+          <div style="text-align:center;margin-top:5px">
+            <a class="btn-sm" href="data:image/jpeg;base64,${b64}" download="google-${i+1}.jpg">⬇ Download</a>
+          </div>
+        </div>`).join('') + `</div>`;
+    }
+    if (data.debug) html += gt2_debugBlock(data.debug);
+    content.innerHTML = html;
+  } else {
+    badge.innerHTML = '<span class="gt-badge-fail">❌ ล้มเหลว</span>';
+    content.innerHTML = `<div class="tc-error-box">${esc(data.error||'Unknown error')}</div>` +
+      (data.debug ? gt2_debugBlock(data.debug) : '');
+  }
+}
+
+function gt2_debugBlock(debug) {
+  const id = 'dbg_' + Math.random().toString(36).slice(2,8);
+  return `<button class="tc-debug-btn" onclick="document.getElementById('${id}').style.display=document.getElementById('${id}').style.display==='none'?'block':'none'">🔍 Raw Debug</button>
+    <pre class="tc-debug-pre" id="${id}">${esc(JSON.stringify(debug,null,2))}</pre>`;
 }
 
 /* ── Settings: API Keys ─────────────────────────────────────────── */

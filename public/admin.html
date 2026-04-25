@@ -329,13 +329,13 @@
     </div>
     <div class="test-tools-grid">
 
-      <div class="test-tool-card" onclick="window.open('/google-test','_blank')">
+      <div class="test-tool-card" onclick="navigateTo('test-google')">
         <div class="ttc-icon">🔵</div>
         <div class="ttc-body">
           <div class="ttc-name">Google AI Studio Test</div>
           <div class="ttc-desc">ทดสอบ Gemini / Imagen — ดู models ที่ใช้ได้, generate ภาพ, debug raw response</div>
         </div>
-        <div class="ttc-arrow">↗</div>
+        <div class="ttc-arrow">→</div>
       </div>
 
       <div class="test-tool-card ttc-disabled">
@@ -344,7 +344,7 @@
           <div class="ttc-name">OpenAI Test <span class="ttc-soon">เร็ว ๆ นี้</span></div>
           <div class="ttc-desc">ทดสอบ DALL-E 3, GPT-Image-1 และ models อื่น ๆ</div>
         </div>
-        <div class="ttc-arrow">↗</div>
+        <div class="ttc-arrow">→</div>
       </div>
 
       <div class="test-tool-card ttc-disabled">
@@ -353,7 +353,7 @@
           <div class="ttc-name">Stability AI Test <span class="ttc-soon">เร็ว ๆ นี้</span></div>
           <div class="ttc-desc">ทดสอบ Stable Diffusion 3.5, SDXL</div>
         </div>
-        <div class="ttc-arrow">↗</div>
+        <div class="ttc-arrow">→</div>
       </div>
 
       <div class="test-tool-card ttc-disabled">
@@ -362,9 +362,99 @@
           <div class="ttc-name">Replicate / Flux Test <span class="ttc-soon">เร็ว ๆ นี้</span></div>
           <div class="ttc-desc">ทดสอบ Flux 1.1 Pro และ models บน Replicate</div>
         </div>
-        <div class="ttc-arrow">↗</div>
+        <div class="ttc-arrow">→</div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ── Test: Google AI Studio (embedded) ─────────────────────────── -->
+  <div id="page-test-google" class="page">
+    <div class="page-header">
+      <div>
+        <button class="btn-back-page" onclick="navigateTo('settings-tests')">← กลับ Test Tools</button>
+        <h1 class="page-title" style="margin-top:8px">🔵 Google AI Studio Test</h1>
+        <p class="page-sub">ทดสอบ image generation กับ Google Gemini / Imagen — หา model ที่ใช้ได้กับ key ของคุณ</p>
+      </div>
+    </div>
+
+    <div class="gt-note-admin">
+      💡 ใส่ API key จาก <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com</a>
+      → กด <b>ดู Models</b> → กด <b>ใช้</b> → ใส่ prompt → Generate
+    </div>
+
+    <!-- API Key row -->
+    <div class="test-card">
+      <div class="test-card-title">🔑 API Key</div>
+      <div class="tc-key-row">
+        <input type="password" id="gt2_apiKey" class="tc-input tc-mono" placeholder="AIzaSy..." autocomplete="off" />
+        <button class="tc-btn-eye" onclick="gt2_toggleKey()">👁</button>
+        <button class="tc-btn-list" id="gt2_listBtn" onclick="gt2_listModels()">🔍 ดู Models</button>
+      </div>
+      <p style="font-size:.74rem;color:var(--text-3);margin-top:6px">Key ไม่ถูกบันทึกในหน้านี้</p>
+
+      <!-- Models table -->
+      <div id="gt2_modelsArea" style="display:none;margin-top:14px">
+        <hr style="border:none;border-top:1px solid var(--border);margin:0 0 12px" />
+        <div style="font-size:.78rem;font-weight:700;color:var(--text-2);margin-bottom:8px" id="gt2_modelsTitle"></div>
+        <div style="overflow-x:auto;border:1px solid var(--border);border-radius:9px">
+          <table class="data-table" style="font-size:.78rem">
+            <thead><tr><th>Model ID</th><th>Display Name</th><th>Methods</th><th></th></tr></thead>
+            <tbody id="gt2_imgBody"></tbody>
+            <tbody id="gt2_otherBody" style="display:none"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Model + Settings -->
+    <div class="test-card">
+      <div class="test-card-title">🤖 Model & Settings</div>
+      <div class="tc-grid2">
+        <div>
+          <label class="tc-label">Model ID</label>
+          <input type="text" id="gt2_model" class="tc-input tc-mono" value="gemini-2.0-flash-exp" placeholder="เช่น imagen-4.0-generate-001" />
+        </div>
+        <div>
+          <label class="tc-label">📐 Aspect Ratio</label>
+          <select id="gt2_ratio" class="tc-select">
+            <option value="1:1">1:1 — Square</option>
+            <option value="16:9">16:9 — Landscape</option>
+            <option value="9:16">9:16 — Portrait</option>
+            <option value="4:3">4:3</option>
+          </select>
+        </div>
+        <div>
+          <label class="tc-label">🔢 จำนวนภาพ</label>
+          <select id="gt2_count" class="tc-select">
+            <option value="1">1 ภาพ</option>
+            <option value="2">2 ภาพ</option>
+            <option value="4">4 ภาพ</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Prompt -->
+    <div class="test-card">
+      <div class="test-card-title">✍️ Prompt</div>
+      <textarea id="gt2_prompt" class="tc-textarea" rows="4"
+        placeholder="A cinematic portrait of an astronaut on the moon, golden hour, photorealistic, 8K..."></textarea>
+      <button class="btn-primary" id="gt2_genBtn" onclick="gt2_generate()" style="width:100%;margin-top:12px;padding:12px;font-size:.95rem">
+        <span id="gt2_spinner" style="display:none;width:16px;height:16px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none"></span>
+        🚀 Generate & Test
+      </button>
+    </div>
+
+    <!-- Result -->
+    <div id="gt2_resultArea" style="display:none">
+      <div class="test-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-weight:700">ผลลัพธ์</div>
+          <span id="gt2_statusBadge"></span>
+        </div>
+        <div id="gt2_resultContent"></div>
+      </div>
     </div>
   </div>
 
