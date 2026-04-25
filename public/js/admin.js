@@ -1,3 +1,10 @@
+/* ── Safe JSON (Safari-compatible) ─────────────────────────────── */
+async function safeJson(res) {
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch(e) { return { ok: false, error: `Server error (HTTP ${res.status}): ${text.slice(0,300)}` }; }
+}
+
 /* ── State ──────────────────────────────────────────────────────── */
 const A = {
   // ใช้ token เดียวกับหน้าหลัก
@@ -903,7 +910,7 @@ async function testSettingKey(id, slug, name) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${A.token}` },
         body: JSON.stringify({ api_key: keyToSend })
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (data.ok) {
         const imgModels = (data.models || []).filter(m => {
           const id2 = (m.name||'').toLowerCase();
