@@ -5,6 +5,17 @@ async function safeJson(res) {
   catch(e) { return { ok: false, error: `Server error (HTTP ${res.status}): ${text.slice(0,300)}` }; }
 }
 
+/* ── Platform icon renderer ──────────────────────────────────────
+   ถ้า icon เป็น URL (ขึ้นต้นด้วย /) ให้ render เป็น <img>
+   มิฉะนั้น escape เป็น text (emoji)                              */
+function pIcon(icon, size = '1.5rem') {
+  if (!icon) return '🤖';
+  if (icon.startsWith('/') || icon.startsWith('http')) {
+    return `<img src="${esc(icon)}" style="width:${size};height:${size};vertical-align:middle;display:inline-block">`;
+  }
+  return esc(icon);
+}
+
 /* ── State ──────────────────────────────────────────────────────── */
 const A = {
   // ใช้ token เดียวกับหน้าหลัก
@@ -440,7 +451,7 @@ function renderPlatformsTable(platforms) {
     <tr>
       <td>
         <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:1.4rem">${esc(p.icon||'🤖')}</span>
+          <span style="font-size:1.4rem;line-height:1">${pIcon(p.icon,'1.4rem')}</span>
           <div>
             <div style="font-weight:600">${esc(p.name)}</div>
             <div style="font-size:.75rem;color:var(--text-3)">${esc(p.description||'').slice(0,50)}</div>
@@ -956,11 +967,11 @@ function gt2_debugBlock(debug) {
 // ข้อมูลเสริมของแต่ละ platform
 const PLATFORM_META = {
   'google-imagen3': {
-    purpose: 'สำหรับสร้างภาพด้วย Google Imagen 3 และ Gemini image generation',
+    purpose: 'สำหรับสร้างภาพด้วย Gemini — รองรับ Gemini 2.0/2.5 Flash image generation',
     keyFormat: 'AIzaSy... (39 ตัวอักษร)',
     keyGetUrl: 'https://aistudio.google.com/apikey',
     keyGetLabel: 'รับ key จาก Google AI Studio',
-    note: 'ใช้ key จาก AI Studio (generativelanguage.googleapis.com) — ไม่ใช่ Vertex AI Service Account',
+    note: 'ใช้ key จาก AI Studio — ไม่ใช่ Vertex AI Service Account',
   },
   'openai-dalle3': {
     purpose: 'สำหรับสร้างภาพด้วย DALL-E 3',
@@ -1035,7 +1046,7 @@ async function loadSettingsApiKeys() {
            data-platform-id="${p.id}"
            data-enabled-models="${enabledModelsJson}">
         <div class="apikey-setting-header">
-          <span class="apikey-setting-icon">${esc(p.icon || '🤖')}</span>
+          <span class="apikey-setting-icon">${pIcon(p.icon,'1.6rem')}</span>
           <div style="flex:1">
             <div class="apikey-setting-name">${esc(p.name)}</div>
             <div class="apikey-setting-slug">${esc(p.slug)}</div>

@@ -103,11 +103,12 @@ DEFAULT_PLATFORMS = [
         'docs_guide': '## Adobe Firefly API\n\n### วิธีขอ Access\n1. ไปที่ https://developer.adobe.com/firefly-api/\n2. คลิก **Get started** → สร้าง Adobe Developer Account\n3. สร้าง Project ใน Adobe Developer Console\n4. เพิ่ม **Firefly API** เข้า project\n5. สร้าง **OAuth Server-to-Server** credentials\n\n### การ Authenticate\n- ต้องแลก Client ID + Client Secret → Access Token\n- ใส่ Client ID ในช่อง API Key\n- ใส่ Client Secret ใน Extra Config: `{"client_secret": "..."}`\n\n### ราคา\n- Free: 25 generative credits/เดือน\n- credits แยกจาก Creative Cloud\n\n### จุดเด่น\n- **ปลอดภัย 100% สำหรับงานการค้า** (trained on licensed content)',
     },
     {
-        'name': 'Google Imagen 3', 'slug': 'google-imagen3',
-        'description': 'โมเดลจาก Google DeepMind — ผ่าน Vertex AI หรือ Gemini API',
-        'base_url': 'https://us-central1-aiplatform.googleapis.com/v1/projects/{PROJECT_ID}/locations/us-central1/publishers/google/models/imagegeneration@006:predict',
-        'model': 'imagen-3.0-generate-001', 'cost_per_gen': 0.02, 'icon': '🌐', 'sort_order': 10,
-        'docs_guide': '## Google Imagen 3\n\n### ทางเลือก 1: Gemini API (ง่ายกว่า)\n1. ไปที่ https://aistudio.google.com/apikey\n2. คลิก **Create API key**\n3. ใส่ key ในช่อง API Key\n4. ตั้ง base_url เป็น: `https://generativelanguage.googleapis.com/v1beta`\n\n### ทางเลือก 2: Vertex AI\n1. มี Google Cloud Project พร้อม billing\n2. เปิด **Vertex AI API**\n3. สร้าง **Service Account** ที่มีสิทธิ์ `Vertex AI User`\n4. ดาวน์โหลด JSON key file\n5. ใส่ JSON content ใน Extra Config: `{"service_account_json": {...}}`\n\n### ราคา\n- $0.02/ภาพ (1024×1024)\n\n### หมายเหตุ\n- ต้องขอ access Imagen 3 ที่ https://cloud.google.com/vertex-ai/generative-ai/docs/image/overview',
+        'name': 'Gemini', 'slug': 'google-imagen3',
+        'description': 'AI สร้างภาพจาก Google — Gemini image generation via AI Studio',
+        'base_url': 'https://generativelanguage.googleapis.com/v1beta',
+        'model': 'gemini-2.0-flash-preview-image-generation', 'cost_per_gen': 0.02,
+        'icon': '/img/gemini.svg', 'sort_order': 0,
+        'docs_guide': '## Gemini Image Generation\n\n### วิธีรับ API Key\n1. ไปที่ https://aistudio.google.com/apikey\n2. คลิก **Create API key**\n3. ใส่ key ในช่อง API Key\n\n### Models ที่รองรับ\n1. `gemini-2.0-flash-preview-image-generation` — แนะนำ\n2. `gemini-2.0-flash-exp` — ทดลอง\n3. `gemini-2.5-flash-preview-image-generation` — รุ่นใหม่กว่า\n\n### ราคา\n- ~$0.02/ภาพ\n\n### หมายเหตุ\n- ใช้ key จาก AI Studio (generativelanguage.googleapis.com)\n- ไม่ใช่ Vertex AI Service Account',
     },
 ]
 
@@ -244,29 +245,32 @@ def init_db():
 
 
 def _patch_google_imagen_docs():
-    """อัปเดต docs_guide ของ google-imagen3 ให้ถูกต้อง"""
+    """Migration: เปลี่ยนชื่อ Google Imagen 3 → Gemini และอัปเดต metadata"""
     new_guide = (
-        '## Google Image Generation (AI Studio)\n\n'
-        '### วิธีขอ API Key\n'
+        '## Gemini Image Generation\n\n'
+        '### วิธีรับ API Key\n'
         '1. ไปที่ **https://aistudio.google.com/apikey**\n'
         '2. คลิก **Create API key**\n'
         '3. คัดลอก key (ขึ้นต้นด้วย `AIza...`) มาใส่ในช่อง API Key ✅\n\n'
-        '### โมเดลที่ระบบลองตามลำดับ\n'
-        '1. `gemini-2.0-flash-preview-image-generation` — native image gen (แนะนำ)\n'
-        '2. `gemini-2.0-flash-exp` — experimental multimodal\n'
-        '3. `imagen-3.0-generate-001` — Imagen 3 (ถ้า account มีสิทธิ์)\n\n'
+        '### Models ที่รองรับ\n'
+        '1. `gemini-2.0-flash-preview-image-generation` — แนะนำ\n'
+        '2. `gemini-2.5-flash-preview-image-generation` — รุ่นใหม่กว่า\n'
+        '3. `gemini-2.0-flash-exp` — ทดลอง\n\n'
         '### ราคา\n'
-        '- **ฟรี** ใน Free tier (gemini-2.0-flash)\n'
-        '- Imagen 3: ~$0.02/ภาพ\n\n'
+        '- ~$0.02/ภาพ\n\n'
         '### หมายเหตุ\n'
-        '- ไม่ต้องสร้าง GCP Project หรือ Service Account\n'
-        '- ถ้า error 404: key ยังไม่ได้เปิดใช้ Image Generation\n'
-        '  → ไปที่ https://aistudio.google.com แล้วลอง generate ภาพสักครั้งก่อน\n'
-        '- ถ้าต้องการ Imagen 3 โดยเฉพาะ: ต้องมี Google Cloud billing account'
+        '- ใช้ key จาก AI Studio — ไม่ใช่ Vertex AI Service Account\n'
+        '- ถ้า error 404: ไปที่ https://aistudio.google.com แล้วลอง generate ภาพสักครั้งก่อน'
     )
     with get_db() as conn:
         conn.execute(
-            "UPDATE ai_platforms SET docs_guide=? WHERE slug='google-imagen3'",
+            """UPDATE ai_platforms SET
+               name        = 'Gemini',
+               icon        = '/img/gemini.svg',
+               sort_order  = 0,
+               description = 'AI สร้างภาพจาก Google — Gemini image generation via AI Studio',
+               docs_guide  = ?
+               WHERE slug  = 'google-imagen3'""",
             (new_guide,)
         )
 

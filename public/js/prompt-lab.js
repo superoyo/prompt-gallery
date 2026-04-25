@@ -52,6 +52,22 @@ function le(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+/* ── Platform icon renderer ─────────────────────────────────
+   labIcon()     → HTML string (ใช้กับ innerHTML / template literals)
+   labIconText() → plain text  (ใช้กับ textContent / option.textContent) */
+function labIcon(icon, size = '1.2em') {
+  if (!icon) return '🤖';
+  if (icon.startsWith('/') || icon.startsWith('http')) {
+    return `<img src="${le(icon)}" alt="" style="width:${size};height:${size};vertical-align:middle;display:inline-block">`;
+  }
+  return le(icon);
+}
+function labIconText(icon) {
+  if (!icon) return '🤖';
+  if (icon.startsWith('/') || icon.startsWith('http')) return '✦';
+  return icon;
+}
+
 /* ── Time ago ───────────────────────────────────────────────── */
 function timeAgo(iso) {
   if (!iso) return '';
@@ -109,7 +125,7 @@ function renderPlatformMenu() {
   list.innerHTML = ready.map(p => `
     <div class="pm-item ${p.slug === lab.selectedSlug ? 'selected' : ''}"
          onclick="selectPlatform('${le(p.slug)}')">
-      <span class="pm-icon">${le(p.icon || '🤖')}</span>
+      <span class="pm-icon">${labIcon(p.icon)}</span>
       <div class="pm-info">
         <div class="pm-name">${le(p.name)}</div>
         <div class="pm-desc">${le(p.description || '')}</div>
@@ -134,7 +150,7 @@ function selectPlatform(slug, closeMenu = true) {
   lab.selectedModel = null;
 
   // update button
-  document.getElementById('pdIcon').textContent = p.icon || '🤖';
+  document.getElementById('pdIcon').innerHTML = labIcon(p.icon, '1.4em');
   document.getElementById('pdName').textContent = p.name;
   document.getElementById('pdCost').textContent = `$${(p.cost_per_gen || 0).toFixed(3)}/ภาพ`;
 
@@ -267,7 +283,7 @@ async function generate() {
   resultCard.innerHTML = `
     <div class="result-loading">
       <div class="spinner"></div>
-      <div class="loading-platform">${le(platform?.icon || '🤖')} ${le(platform?.name || lab.selectedSlug)}</div>
+      <div class="loading-platform">${labIcon(platform?.icon,'1.3em')} ${le(platform?.name || lab.selectedSlug)}</div>
       <div>กำลังสร้างภาพ...</div>
     </div>`;
 
@@ -330,7 +346,7 @@ function renderResult(result, prompt) {
       </div>
       <div class="result-footer">
         <div class="result-platform">
-          <span class="result-platform-icon">${le(p.icon || result.icon || '🤖')}</span>
+          <span class="result-platform-icon">${labIcon(p.icon || result.icon, '1.3em')}</span>
           <span class="result-platform-name">${le(result.name)}</span>
         </div>
         <div class="result-meta-chips">
@@ -385,7 +401,7 @@ function populateHistoryFilter() {
   lab.platforms.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.slug;
-    opt.textContent = `${p.icon || ''} ${p.name}`;
+    opt.textContent = `${labIconText(p.icon)} ${p.name}`;
     sel.appendChild(opt);
   });
 }
@@ -416,13 +432,14 @@ function renderHistoryFeed(items) {
   }
   feed.innerHTML = items.map(item => {
     const p = lab.platforms.find(pl => pl.slug === item.platform_slug);
-    const icon = p?.icon || '🤖';
+    const iconRaw = p?.icon || '🤖';
+    const iconHtml = labIcon(iconRaw, '1em');
     const isOk = item.status === 'success';
 
     const thumb = (isOk && item.result_image_path)
       ? `<img class="hi-thumb" src="/uploads/${le(item.result_image_path)}"
               alt="" onclick="openLightbox('/uploads/${le(item.result_image_path)}', '${le(item.platform_name)}')" />`
-      : `<div class="hi-thumb-placeholder" title="${le(item.error_msg || '')}">${isOk ? icon : '❌'}</div>`;
+      : `<div class="hi-thumb-placeholder" title="${le(item.error_msg || '')}">${isOk ? iconHtml : '❌'}</div>`;
 
     const promptShort = (item.prompt_text || '').slice(0, 80) + (item.prompt_text?.length > 80 ? '…' : '');
 
@@ -431,7 +448,7 @@ function renderHistoryFeed(items) {
         ${thumb}
         <div class="hi-body">
           <div class="hi-platform">
-            <span class="hi-platform-icon">${icon}</span>
+            <span class="hi-platform-icon">${iconHtml}</span>
             <span class="hi-platform-name ${isOk ? '' : 'hi-status-fail'}">${le(item.platform_name)}</span>
           </div>
           <div class="hi-prompt">${le(promptShort)}</div>
@@ -474,7 +491,7 @@ function renderSidebarStats(stats) {
     return `
       <div class="stat-chip">
         <div class="stat-chip-left">
-          <span class="stat-chip-icon">${p?.icon || '🤖'}</span>
+          <span class="stat-chip-icon">${labIcon(p?.icon, '1.1em')}</span>
           <span class="stat-chip-name">${le(s.platform_name)}</span>
         </div>
         <div class="stat-chip-right">
