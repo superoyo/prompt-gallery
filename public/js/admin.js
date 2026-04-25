@@ -732,37 +732,124 @@ function fmt(iso) {
 }
 
 /* ── Settings: API Keys ─────────────────────────────────────────── */
+// ข้อมูลเสริมของแต่ละ platform
+const PLATFORM_META = {
+  'google-imagen3': {
+    purpose: 'สำหรับสร้างภาพด้วย Google Imagen 3 และ Gemini image generation',
+    keyFormat: 'AIzaSy... (39 ตัวอักษร)',
+    keyGetUrl: 'https://aistudio.google.com/apikey',
+    keyGetLabel: 'รับ key จาก Google AI Studio',
+    note: 'ใช้ key จาก AI Studio (generativelanguage.googleapis.com) — ไม่ใช่ Vertex AI Service Account',
+  },
+  'openai-dalle3': {
+    purpose: 'สำหรับสร้างภาพด้วย DALL-E 3',
+    keyFormat: 'sk-... (51 ตัวอักษร)',
+    keyGetUrl: 'https://platform.openai.com/api-keys',
+    keyGetLabel: 'รับ key จาก OpenAI Platform',
+    note: 'ต้องมีเครดิตใน account ก่อนใช้งาน',
+  },
+  'openai-gpt-image-1': {
+    purpose: 'สำหรับสร้างภาพด้วย GPT-Image-1 (รุ่นใหม่กว่า DALL-E 3)',
+    keyFormat: 'sk-... (51 ตัวอักษร)',
+    keyGetUrl: 'https://platform.openai.com/api-keys',
+    keyGetLabel: 'รับ key จาก OpenAI Platform',
+    note: 'ใช้ key เดียวกับ DALL-E 3 ได้เลย',
+  },
+  'stability-sd3': {
+    purpose: 'สำหรับสร้างภาพด้วย Stable Diffusion 3.5',
+    keyFormat: 'sk-... (Stability AI format)',
+    keyGetUrl: 'https://platform.stability.ai/account/keys',
+    keyGetLabel: 'รับ key จาก Stability AI',
+    note: null,
+  },
+  'stability-sdxl': {
+    purpose: 'สำหรับสร้างภาพด้วย Stable Diffusion XL',
+    keyFormat: 'sk-... (Stability AI format)',
+    keyGetUrl: 'https://platform.stability.ai/account/keys',
+    keyGetLabel: 'รับ key จาก Stability AI',
+    note: 'ใช้ key เดียวกับ SD3 ได้เลย',
+  },
+  'ideogram-v2': {
+    purpose: 'สำหรับสร้างภาพด้วย Ideogram v2',
+    keyFormat: 'ideogram API key',
+    keyGetUrl: 'https://ideogram.ai/manage-api',
+    keyGetLabel: 'รับ key จาก Ideogram',
+    note: null,
+  },
+  'flux-replicate': {
+    purpose: 'สำหรับสร้างภาพด้วย Flux 1.1 Pro บน Replicate',
+    keyFormat: 'r8_... (Replicate format)',
+    keyGetUrl: 'https://replicate.com/account/api-tokens',
+    keyGetLabel: 'รับ key จาก Replicate',
+    note: null,
+  },
+  'leonardo-ai': {
+    purpose: 'สำหรับสร้างภาพด้วย Leonardo AI',
+    keyFormat: 'Leonardo API key (UUID format)',
+    keyGetUrl: 'https://app.leonardo.ai/settings/user-settings',
+    keyGetLabel: 'รับ key จาก Leonardo AI',
+    note: null,
+  },
+};
+
 async function loadSettingsApiKeys() {
   const el = document.getElementById('apikeySettingsList');
   el.innerHTML = '<div style="color:var(--text-2);padding:12px">กำลังโหลด...</div>';
   try {
     const platforms = await api('GET', '/api/admin/platforms');
-    el.innerHTML = platforms.map(p => `
+    el.innerHTML = platforms.map(p => {
+      const meta = PLATFORM_META[p.slug] || {};
+      const noteHtml = meta.note
+        ? `<div class="apikey-note">⚠️ ${esc(meta.note)}</div>` : '';
+      const purposeHtml = meta.purpose
+        ? `<div class="apikey-purpose">🎯 ${esc(meta.purpose)}</div>` : '';
+      const linkHtml = meta.keyGetUrl
+        ? `<a class="apikey-getlink" href="${meta.keyGetUrl}" target="_blank">🔗 ${esc(meta.keyGetLabel || 'ขอ API Key')}</a>` : '';
+      const formatHtml = meta.keyFormat
+        ? `<span class="apikey-format">รูปแบบ: <code>${esc(meta.keyFormat)}</code></span>` : '';
+
+      return `
       <div class="apikey-setting-card" id="keycard-${p.id}">
         <div class="apikey-setting-header">
           <span class="apikey-setting-icon">${esc(p.icon || '🤖')}</span>
-          <div>
+          <div style="flex:1">
             <div class="apikey-setting-name">${esc(p.name)}</div>
             <div class="apikey-setting-slug">${esc(p.slug)}</div>
           </div>
+          <span class="apikey-status-chip ${p.has_key ? 'chip-ok' : 'chip-empty'}">
+            ${p.has_key ? '✓ มี Key' : '— ยังไม่ตั้งค่า'}
+          </span>
         </div>
+
+        ${(purposeHtml || noteHtml || linkHtml) ? `
+        <div class="apikey-meta-row">
+          ${purposeHtml}
+          ${noteHtml}
+          <div class="apikey-meta-footer">${linkHtml}${formatHtml}</div>
+        </div>` : ''}
+
         <div class="apikey-setting-body">
           <input type="password" class="apikey-setting-input" id="keyinput-${p.id}"
-            placeholder="ใส่ API Key..."
+            placeholder="${meta.keyFormat ? esc(meta.keyFormat) : 'ใส่ API Key...'}"
             value="${p.has_key ? '••••••••••••••••' : ''}"
             data-has-key="${p.has_key ? '1' : '0'}"
             onfocus="clearPlaceholderKey(${p.id})"
           />
           <button class="btn-eye-sm" onclick="toggleSettingKey(${p.id})">👁</button>
           <button class="btn-save-key" onclick="saveSettingKey(${p.id})">💾 บันทึก</button>
-          <button class="btn-test-key" id="testbtn-${p.id}" onclick="testSettingKey(${p.id}, '${esc(p.slug)}', '${esc(p.name)}')">🧪 Test</button>
+          <button class="btn-test-key" id="testbtn-${p.id}"
+            onclick="testSettingKey(${p.id}, '${esc(p.slug)}', '${esc(p.name)}')"
+            ${p.slug !== 'google-imagen3' ? 'title="ยังไม่รองรับการทดสอบอัตโนมัติ"' : ''}>
+            🧪 Test
+          </button>
         </div>
         <div class="apikey-setting-status" id="keystatus-${p.id}">
           ${p.has_key
-            ? '<span class="key-status-set">✓ มี API Key บันทึกอยู่</span>'
+            ? '<span class="key-status-set">✓ มี API Key บันทึกอยู่แล้ว</span>'
             : '<span class="key-status-set" style="color:var(--text-3)">ยังไม่ได้ตั้งค่า</span>'}
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   } catch (e) {
     el.innerHTML = `<div style="color:var(--red);padding:12px">${esc(e.message)}</div>`;
   }

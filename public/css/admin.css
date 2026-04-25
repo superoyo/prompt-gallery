@@ -753,6 +753,29 @@ body { background: var(--bg); color: var(--text); display: flex; overflow: hidde
 .key-status-fail { color: var(--red); }
 .key-status-set  { color: var(--text-3); }
 
+.apikey-status-chip {
+  font-size: 0.72rem; font-weight: 700; padding: 3px 10px;
+  border-radius: 99px; flex-shrink: 0;
+}
+.chip-ok    { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.chip-empty { background: var(--bg-3); color: var(--text-3); border: 1px solid var(--border); }
+
+.apikey-meta-row {
+  background: var(--bg-3); border: 1px solid var(--border);
+  border-radius: 9px; padding: 10px 13px; margin-bottom: 10px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.apikey-purpose { font-size: 0.82rem; color: var(--text); font-weight: 500; }
+.apikey-note    { font-size: 0.8rem; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 5px 9px; }
+.apikey-meta-footer { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 2px; }
+.apikey-getlink {
+  font-size: 0.8rem; font-weight: 600; color: var(--blue-2);
+  text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+}
+.apikey-getlink:hover { text-decoration: underline; }
+.apikey-format { font-size: 0.78rem; color: var(--text-2); }
+.apikey-format code { font-family: 'Fira Code', monospace; color: var(--blue-2); }
+
 /* ── Settings: Test Tools ───────────────────────────────────────── */
 .test-tools-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
