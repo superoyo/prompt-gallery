@@ -215,6 +215,12 @@ function toggleKey() {
   const i = $('apiKey'); i.type = i.type === 'password' ? 'text' : 'password';
 }
 
+async function safeJson(res) {
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch(e) { return { ok: false, error: `Server error (HTTP ${res.status}): ${text.slice(0,300)}` }; }
+}
+
 async function listModels() {
   const apiKey = $('apiKey').value.trim();
   if (!apiKey) { alert('ใส่ API Key ก่อน'); return; }
@@ -227,9 +233,13 @@ async function listModels() {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ api_key: apiKey })
     });
-    const data = await res.json();
-    if (!data.ok) { alert('Error: ' + data.error); return; }
-
+    const data = await safeJson(res);
+    if (!data.ok) {
+      $('modelsListArea').style.display = 'block';
+      $('modelsListTitle').textContent  = '';
+      $('modelsTableBody').innerHTML    = `<tr><td colspan="4" style="color:#f87171;padding:12px">${escHtml(data.error)}</td></tr>`;
+      return;
+    }
     renderModelsTable(data.models);
   } catch(e) {
     alert('Error: ' + e.message);
@@ -302,7 +312,7 @@ async function runTest() {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ api_key: apiKey, model, prompt, aspect_ratio: aspectRatio, sample_count: sampleCount })
     });
-    renderResult(await res.json());
+    renderResult(await safeJson(res));
   } catch(e) {
     renderResult({ ok: false, error: e.message });
   } finally {
