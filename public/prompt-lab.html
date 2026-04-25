@@ -14,14 +14,43 @@
 <!-- NAVBAR -->
 <header class="navbar">
   <div class="nav-inner">
+
     <a href="/" class="logo">
       <span class="logo-icon">✦</span>
       <span>Prompt<strong>Gallery</strong></span>
     </a>
-    <nav class="nav-links">
-      <a href="/" class="nav-pill nav-pill-ghost">← Gallery</a>
-      <div id="authArea"></div>
+
+    <nav class="nav-links" id="navLinks">
+      <!-- Images dropdown -->
+      <div class="nav-item nav-item-dropdown" id="navImages">
+        <button class="nav-link nav-link-active" id="navImagesBtn" onclick="toggleNavDropdown('navImages', event)">
+          Images
+          <svg class="nav-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 6 8 10 12 6"/></svg>
+        </button>
+        <div class="nav-dropdown" id="navImagesDropdown">
+          <a href="/prompt-lab" class="nav-dropdown-item nav-dd-active">
+            <span class="nav-dd-icon">🧪</span>
+            <span class="nav-dd-info">
+              <span class="nav-dd-title">Prompt Lab</span>
+              <span class="nav-dd-desc">ทดสอบ prompt กับ AI จริง</span>
+            </span>
+          </a>
+          <div class="nav-dd-divider"></div>
+          <a href="/" class="nav-dropdown-item">
+            <span class="nav-dd-icon">🖼️</span>
+            <span class="nav-dd-info">
+              <span class="nav-dd-title">Gallery</span>
+              <span class="nav-dd-desc">ดูคลัง prompt ทั้งหมด</span>
+            </span>
+          </a>
+        </div>
+      </div>
     </nav>
+
+    <div class="nav-right">
+      <div id="authArea"></div>
+    </div>
+
   </div>
 </header>
 

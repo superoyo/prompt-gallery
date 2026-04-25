@@ -14,6 +14,19 @@ const lab = {
   menuOpen:       false,
 };
 
+/* ── Nav Dropdown ───────────────────────────────────────────── */
+function toggleNavDropdown(itemId, e) {
+  e && e.stopPropagation();
+  const item = document.getElementById(itemId);
+  if (!item) return;
+  const isOpen = item.classList.contains('open');
+  document.querySelectorAll('.nav-item.open').forEach(el => el.classList.remove('open'));
+  if (!isOpen) item.classList.add('open');
+}
+document.addEventListener('click', () => {
+  document.querySelectorAll('.nav-item.open').forEach(el => el.classList.remove('open'));
+});
+
 /* ── Auth ───────────────────────────────────────────────────── */
 function labToken()    { return localStorage.getItem('pg_token'); }
 function labUsername() { return localStorage.getItem('pg_username'); }

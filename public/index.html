@@ -13,15 +13,47 @@
 <!-- ── NAVBAR ─────────────────────────────────────────────────── -->
 <header class="navbar">
   <div class="nav-inner">
+
+    <!-- Logo -->
     <a href="/" class="logo">
       <span class="logo-icon">✦</span>
       <span>Prompt<strong>Gallery</strong></span>
     </a>
+
+    <!-- Primary nav -->
     <nav class="nav-links" id="navLinks">
-      <a href="/prompt-lab" class="nav-pill nav-pill-lab">🧪 Prompt Lab</a>
-      <a href="#" class="nav-pill" id="btnAddPrompt">+ เพิ่ม Prompt</a>
-      <div id="authArea"></div>
+
+      <!-- Images dropdown -->
+      <div class="nav-item nav-item-dropdown" id="navImages">
+        <button class="nav-link" id="navImagesBtn" onclick="toggleNavDropdown('navImages', event)">
+          Images
+          <svg class="nav-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 6 8 10 12 6"/></svg>
+        </button>
+        <div class="nav-dropdown" id="navImagesDropdown">
+          <a href="/prompt-lab" class="nav-dropdown-item">
+            <span class="nav-dd-icon">🧪</span>
+            <span class="nav-dd-info">
+              <span class="nav-dd-title">Prompt Lab</span>
+              <span class="nav-dd-desc">ทดสอบ prompt กับ AI จริง</span>
+            </span>
+          </a>
+          <a href="#" class="nav-dropdown-item" id="btnAddPrompt">
+            <span class="nav-dd-icon">✦</span>
+            <span class="nav-dd-info">
+              <span class="nav-dd-title">เพิ่ม Prompt</span>
+              <span class="nav-dd-desc">แบ่งปัน prompt ของคุณ</span>
+            </span>
+          </a>
+        </div>
+      </div>
+
     </nav>
+
+    <!-- Right: auth -->
+    <div class="nav-right">
+      <div id="authArea"></div>
+    </div>
+
   </div>
 </header>
 
