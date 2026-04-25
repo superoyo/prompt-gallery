@@ -217,6 +217,19 @@
     }
     .gt-dl-btn:hover { border-color: var(--blue-3); color: var(--blue-2); text-decoration: none; }
 
+    .gt-see-more-row td {
+      text-align: center; padding: 10px !important;
+      background: var(--bg-3) !important;
+    }
+    .gt-btn-seemore {
+      background: none; border: 1.5px solid var(--border); color: var(--text-2);
+      border-radius: 7px; padding: 5px 16px; font-size: 0.78rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: var(--transition);
+    }
+    .gt-btn-seemore:hover { border-color: var(--blue-3); color: var(--blue-2); }
+    .gt-other-rows { display: none; }
+    .gt-other-rows.open { display: table-row-group; }
+
     .gt-divider { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
     @media (max-width: 640px) {
@@ -285,7 +298,8 @@
               <th></th>
             </tr>
           </thead>
-          <tbody id="modelsTableBody"></tbody>
+          <tbody id="modelsImgBody"></tbody>
+          <tbody id="modelsOtherBody" class="gt-other-rows"></tbody>
         </table>
       </div>
     </div>
@@ -400,35 +414,71 @@ async function listModels() {
   }
 }
 
+function modelRow(m) {
+  const modelId = (m.name || '').replace('models/', '');
+  const methods = m.supportedGenerationMethods || [];
+  const tags = methods.map(met => {
+    if (met === 'generateContent') return `<span class="method-tag tag-gc">generateContent</span>`;
+    if (met === 'predict')         return `<span class="method-tag tag-pred">predict</span>`;
+    return `<span class="method-tag tag-misc">${escHtml(met)}</span>`;
+  }).join('');
+  const hasImg = methods.includes('generateContent') || methods.includes('predict');
+  return `<tr>
+    <td><code>${escHtml(modelId)}</code></td>
+    <td style="color:var(--text);font-size:.82rem">${escHtml(m.displayName || '')}</td>
+    <td>${tags}</td>
+    <td>${hasImg ? `<button class="gt-btn-use" onclick="useModel('${escHtml(modelId)}')">ใช้</button>` : ''}</td>
+  </tr>`;
+}
+
 function renderModelsTable(models) {
-  // sort: imagen first, then gemini, then rest
-  models.sort((a, b) => {
-    const score = n => n.includes('imagen') ? 0 : n.includes('gemini') ? 1 : 2;
-    return score(a.name || '') - score(b.name || '');
+  // split: image-capable vs others
+  const imgModels   = models.filter(m => {
+    const methods = m.supportedGenerationMethods || [];
+    return methods.includes('generateContent') || methods.includes('predict');
+  });
+  const otherModels = models.filter(m => {
+    const methods = m.supportedGenerationMethods || [];
+    return !methods.includes('generateContent') && !methods.includes('predict');
   });
 
-  $('modelsListTitle').textContent = `พบ ${models.length} models — กด "ใช้" เพื่อเลือก model นั้นไปทดสอบ`;
+  // sort each group: imagen → gemini → rest
+  const sortScore = n => n.includes('imagen') ? 0 : n.includes('gemini') ? 1 : 2;
+  imgModels.sort((a, b)   => sortScore(a.name || '') - sortScore(b.name || ''));
+  otherModels.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-  $('modelsTableBody').innerHTML = models.map(m => {
-    const modelId = (m.name || '').replace('models/', '');
-    const methods = m.supportedGenerationMethods || [];
-    const tags = methods.map(met => {
-      if (met === 'generateContent') return `<span class="method-tag tag-gc">generateContent</span>`;
-      if (met === 'predict')         return `<span class="method-tag tag-pred">predict</span>`;
-      return `<span class="method-tag tag-misc">${escHtml(met)}</span>`;
-    }).join('');
-    const hasImg = methods.includes('generateContent') || methods.includes('predict');
-    return `<tr>
-      <td><code>${escHtml(modelId)}</code></td>
-      <td style="color:var(--text);font-size:.82rem">${escHtml(m.displayName || '')}</td>
-      <td>${tags}</td>
-      <td>${hasImg
-        ? `<button class="gt-btn-use" onclick="useModel('${escHtml(modelId)}')">ใช้</button>`
-        : ''}</td>
-    </tr>`;
-  }).join('');
+  $('modelsListTitle').textContent =
+    `พบ ${imgModels.length} models ที่สร้างภาพได้${otherModels.length ? ` (+ ${otherModels.length} อื่น ๆ)` : ''} — กด "ใช้" เพื่อเลือก`;
+
+  // Image-capable rows
+  $('modelsImgBody').innerHTML = imgModels.map(modelRow).join('');
+
+  // Other rows + "See more" toggle row inside imgBody
+  if (otherModels.length) {
+    $('modelsImgBody').innerHTML +=
+      `<tr class="gt-see-more-row">
+        <td colspan="4">
+          <button class="gt-btn-seemore" id="seeMoreBtn" onclick="toggleOthers()">
+            ▼ ดู ${otherModels.length} models อื่น ๆ (embedding, text-only ฯลฯ)
+          </button>
+        </td>
+      </tr>`;
+    $('modelsOtherBody').innerHTML = otherModels.map(modelRow).join('');
+  } else {
+    $('modelsOtherBody').innerHTML = '';
+  }
 
   $('modelsListArea').style.display = 'block';
+}
+
+function toggleOthers() {
+  const body = $('modelsOtherBody');
+  const btn  = $('seeMoreBtn');
+  const open = body.classList.toggle('open');
+  const n    = body.querySelectorAll('tr').length;
+  btn.textContent = open
+    ? `▲ ซ่อน models อื่น ๆ`
+    : `▼ ดู ${n} models อื่น ๆ (embedding, text-only ฯลฯ)`;
 }
 
 function useModel(modelId) {
