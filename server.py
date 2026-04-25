@@ -1494,6 +1494,34 @@ def google_test_page():
 
 # ─── Google AI Studio Test Route ─────────────────────────────────────────────
 
+@app.route('/api/test/google-list-models', methods=['POST'])
+def test_google_list_models():
+    """ดึงรายชื่อ model ทั้งหมดจาก Google Generative Language API"""
+    data    = request.get_json() or {}
+    api_key = (data.get('api_key') or '').strip()
+    if not api_key:
+        return jsonify({'ok': False, 'error': 'ไม่มี API Key'}), 400
+
+    url = f'https://generativelanguage.googleapis.com/v1beta/models?key={api_key}&pageSize=200'
+    req = urllib.request.Request(url, headers={'Content-Type': 'application/json'}, method='GET')
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        err = e.read().decode('utf-8', errors='replace')[:400]
+        return jsonify({'ok': False, 'error': f'HTTP {e.code}: {err}'}), 400
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 500
+
+    models = result.get('models', [])
+    # filter เฉพาะ model ที่น่าสนใจ
+    img_models   = [m for m in models if any(k in m.get('name','').lower()
+                    for k in ('imagen','flash','pro')) and
+                    any('generateContent' in (m.get('supportedGenerationMethods') or [])
+                        or 'predict' in (m.get('supportedGenerationMethods') or []))]
+    return jsonify({'ok': True, 'models': models, 'image_capable': img_models})
+
+
 @app.route('/api/test/google-imagen', methods=['POST'])
 def test_google_imagen():
     """

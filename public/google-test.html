@@ -9,127 +9,99 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0f1117;
-      --surface: #1a1d27;
-      --surface2: #21253a;
-      --border: #2e3250;
-      --accent: #4f8ef7;
-      --accent2: #7c3aed;
-      --green: #22c55e;
-      --red: #ef4444;
-      --yellow: #eab308;
-      --text: #e2e8f0;
-      --muted: #8892b0;
-      --radius: 12px;
+      --bg: #0f1117; --surface: #1a1d27; --surface2: #21253a;
+      --border: #2e3250; --accent: #4f8ef7; --green: #22c55e;
+      --red: #ef4444; --text: #e2e8f0; --muted: #8892b0; --radius: 12px;
     }
     body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; padding: 32px 16px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    .page-header { margin-bottom: 28px; }
+    .page-header h1 { font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .page-header p  { color: var(--muted); margin-top: 6px; font-size: 0.9rem; }
+    .badge-admin { background: #1d2a1d; color: #4ade80; border: 1px solid #166534; font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
 
-    .container { max-width: 860px; margin: 0 auto; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 14px; }
+    .card-title { font-size: 0.8rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; }
 
-    .page-header { margin-bottom: 32px; }
-    .page-header h1 { font-size: 1.6rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
-    .page-header p  { color: var(--muted); margin-top: 6px; font-size: 0.92rem; }
-    .badge-admin { background: #1d2a1d; color: #4ade80; border: 1px solid #166534; font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; font-weight: 600; letter-spacing: 0.05em; }
-
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
-    .card-title { font-size: 0.82rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
-
-    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+    label { display: block; font-size: 0.84rem; color: var(--muted); margin-bottom: 5px; font-weight: 500; }
     input[type="text"], input[type="password"], textarea, select {
       width: 100%; background: var(--surface2); border: 1px solid var(--border);
       color: var(--text); border-radius: 8px; padding: 10px 14px;
-      font-family: inherit; font-size: 0.92rem; outline: none; transition: border-color .2s;
+      font-family: inherit; font-size: 0.9rem; outline: none; transition: border-color .2s;
     }
-    input[type="text"]:focus, input[type="password"]:focus, textarea:focus, select:focus {
-      border-color: var(--accent);
-    }
-    textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
-    select option { background: var(--surface2); }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 88px; line-height: 1.5; }
 
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .field { margin-bottom: 14px; }
+    .field { margin-bottom: 12px; }
 
-    .key-row { display: flex; gap: 8px; }
+    /* Key row */
+    .key-row { display: flex; gap: 8px; align-items: stretch; }
     .key-row input { flex: 1; font-family: 'Fira Code', monospace; font-size: 0.82rem; }
-    .btn-eye { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 0 12px; cursor: pointer; font-size: 1rem; transition: color .2s; }
+    .btn-eye  { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 0 12px; cursor: pointer; font-size: 1rem; }
     .btn-eye:hover { color: var(--text); }
 
-    .model-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
-    .model-chip {
-      border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 14px;
-      cursor: pointer; transition: all .15s; background: var(--surface2);
-    }
-    .model-chip:hover { border-color: var(--accent); background: #1e2645; }
-    .model-chip.active { border-color: var(--accent); background: #1a2540; }
-    .model-chip input { display: none; }
-    .mc-name { font-size: 0.88rem; font-weight: 600; color: var(--text); }
-    .mc-id   { font-size: 0.72rem; color: var(--muted); font-family: 'Fira Code', monospace; margin-top: 2px; }
-    .mc-tag  { font-size: 0.68rem; padding: 1px 6px; border-radius: 4px; font-weight: 600; margin-top: 4px; display: inline-block; }
-    .tag-gemini  { background: #1e3a5f; color: #60a5fa; }
-    .tag-imagen  { background: #3b1d5e; color: #c084fc; }
-    .tag-new     { background: #14532d; color: #4ade80; }
+    /* List models btn */
+    .btn-list { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 9px 16px; cursor: pointer; font-size: 0.82rem; font-family: inherit; font-weight: 600; white-space: nowrap; transition: all .15s; }
+    .btn-list:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-list:disabled { opacity: .5; cursor: not-allowed; }
 
+    /* Models list */
+    #modelsListArea { display: none; margin-top: 12px; }
+    .models-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .models-table th { color: var(--muted); font-weight: 600; text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    .models-table td { padding: 6px 8px; border-bottom: 1px solid #1e2235; vertical-align: top; }
+    .models-table tr:hover td { background: var(--surface2); }
+    .method-tag { display: inline-block; font-size: 0.68rem; padding: 1px 6px; border-radius: 4px; font-weight: 600; margin-right: 3px; }
+    .tag-gc     { background: #1e3a5f; color: #60a5fa; }
+    .tag-pred   { background: #3b1d5e; color: #c084fc; }
+    .tag-embed  { background: #1a2b1a; color: #6ee7b7; }
+    .btn-use-model { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 5px; padding: 2px 8px; font-size: 0.72rem; cursor: pointer; font-family: inherit; }
+    .btn-use-model:hover { border-color: var(--green); color: var(--green); }
+
+    /* Generate btn */
     .btn-generate {
-      width: 100%; padding: 14px; border: none; border-radius: 10px; cursor: pointer;
-      font-size: 1rem; font-weight: 700; font-family: inherit;
+      width: 100%; padding: 13px; border: none; border-radius: 10px; cursor: pointer;
+      font-size: 0.98rem; font-weight: 700; font-family: inherit;
       background: linear-gradient(135deg, #4f8ef7 0%, #7c3aed 100%);
-      color: #fff; transition: opacity .2s, transform .1s; margin-top: 4px;
-      display: flex; align-items: center; justify-content: center; gap: 10px;
+      color: #fff; transition: opacity .2s; display: flex; align-items: center; justify-content: center; gap: 10px;
     }
-    .btn-generate:hover:not(:disabled) { opacity: .9; }
-    .btn-generate:active:not(:disabled) { transform: scale(.98); }
+    .btn-generate:hover:not(:disabled) { opacity: .88; }
     .btn-generate:disabled { opacity: .5; cursor: not-allowed; }
 
-    .spinner {
-      width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,.3);
-      border-top-color: #fff; border-radius: 50%;
-      animation: spin .7s linear infinite;
-    }
+    .spinner { width: 17px; height: 17px; border: 2.5px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Results */
+    /* Result */
     #resultArea { display: none; }
+    .result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .status-badge { padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; }
+    .status-ok   { background: #14532d; color: #4ade80; }
+    .status-fail { background: #450a0a; color: #f87171; }
+    .status-wait { background: #1c1700; color: #facc15; }
 
-    .result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-    .result-title  { font-size: 0.9rem; font-weight: 700; }
-    .status-badge  { padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; }
-    .status-ok     { background: #14532d; color: #4ade80; }
-    .status-fail   { background: #450a0a; color: #f87171; }
-    .status-trying { background: #1c1d0e; color: #facc15; }
+    .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-bottom: 14px; }
+    .img-grid img { width: 100%; border-radius: 10px; border: 1px solid var(--border); }
+    .img-dl { text-align: center; margin-top: 6px; }
 
-    .img-result { width: 100%; max-width: 512px; border-radius: 10px; display: block; margin: 0 auto 16px; border: 1px solid var(--border); }
+    .model-used-line { font-size: 0.82rem; color: var(--muted); text-align: center; margin-bottom: 12px; }
+    .model-used-line b { color: var(--green); }
 
-    .model-tried { font-size: 0.8rem; color: var(--muted); text-align: center; margin-bottom: 12px; }
-    .model-tried b { color: var(--green); }
+    .error-box { background: #1c0a0a; border: 1px solid #7f1d1d; border-radius: 8px; padding: 14px; font-size: 0.84rem; color: #fca5a5; white-space: pre-wrap; line-height: 1.6; }
 
-    .debug-toggle { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 4px 10px; font-size: 0.78rem; cursor: pointer; transition: all .15s; }
+    .debug-toggle { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 4px 10px; font-size: 0.76rem; cursor: pointer; margin-top: 10px; }
     .debug-toggle:hover { color: var(--text); border-color: var(--accent); }
+    .debug-box { display: none; margin-top: 8px; }
+    .debug-box pre { background: #08090f; border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow: auto; font-family: 'Fira Code', monospace; font-size: 0.74rem; color: #94a3b8; max-height: 300px; line-height: 1.5; }
 
-    .debug-box { margin-top: 10px; display: none; }
-    .debug-box pre {
-      background: #0a0c14; border: 1px solid var(--border); border-radius: 8px;
-      padding: 14px; overflow-x: auto; font-family: 'Fira Code', monospace;
-      font-size: 0.76rem; color: #a8b4d0; line-height: 1.55; max-height: 320px; overflow-y: auto;
-    }
+    .btn-dl { display: inline-block; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 7px; padding: 5px 14px; font-size: 0.8rem; text-decoration: none; cursor: pointer; }
+    .btn-dl:hover { border-color: var(--accent); color: var(--accent); }
 
-    .error-box {
-      background: #1c0a0a; border: 1px solid #7f1d1d; border-radius: 8px;
-      padding: 14px; font-size: 0.85rem; color: #fca5a5; white-space: pre-wrap;
-      word-break: break-word; line-height: 1.6;
-    }
-
-    .img-actions { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; }
-    .btn-action { background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      border-radius: 8px; padding: 7px 16px; font-size: 0.82rem; font-family: inherit;
-      cursor: pointer; transition: all .15s; font-weight: 500; text-decoration: none; }
-    .btn-action:hover { border-color: var(--accent); color: var(--accent); }
-
-    .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
-
-    .back-link { color: var(--muted); font-size: 0.85rem; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 20px; transition: color .2s; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+    .back-link { color: var(--muted); font-size: 0.84rem; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 18px; }
     .back-link:hover { color: var(--text); }
-
-    .note { background: #1a1500; border: 1px solid #713f12; border-radius: 8px; padding: 12px 14px; font-size: 0.82rem; color: #fde68a; line-height: 1.6; }
+    .note { background: #1a1500; border: 1px solid #713f12; border-radius: 8px; padding: 11px 14px; font-size: 0.82rem; color: #fde68a; line-height: 1.6; }
+    .note a { color: #fbbf24; }
     .note b { color: #fbbf24; }
   </style>
 </head>
@@ -140,12 +112,13 @@
 
   <div class="page-header">
     <h1>🧪 Google AI Studio <span class="badge-admin">TEST</span></h1>
-    <p>ทดสอบ image generation กับ Google Gemini / Imagen โดยตรง — เพื่อหาว่า model ไหนใช้ได้กับ API key ของคุณ</p>
+    <p>ทดสอบ image generation กับ Google Gemini / Imagen — ดูว่า model ไหนใช้ได้กับ key ของคุณ</p>
   </div>
 
   <div class="note">
-    <b>วิธีใช้:</b> ใส่ API key จาก <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#fbbf24">aistudio.google.com</a>
-    → เลือก model ที่ต้องการทดสอบ → กด Generate — หน้านี้จะแสดงผลลัพธ์และ raw response เพื่อ debug
+    <b>วิธีใช้:</b> ใส่ API key จาก <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com</a>
+    → กด <b>"ดู Models ที่ใช้ได้"</b> เพื่อดึงรายชื่อ model จริงจาก Google
+    → เลือก model → ใส่ prompt → กด Generate
   </div>
 
   <hr class="divider" />
@@ -155,73 +128,48 @@
     <div class="card-title">🔑 API Key</div>
     <div class="key-row">
       <input type="password" id="apiKey" placeholder="AIza..." autocomplete="off" />
-      <button class="btn-eye" onclick="toggleKey()" title="แสดง/ซ่อน">👁</button>
+      <button class="btn-eye" onclick="toggleKey()">👁</button>
+      <button class="btn-list" id="listBtn" onclick="listModels()">🔍 ดู Models ที่ใช้ได้</button>
     </div>
-    <p style="font-size:.78rem;color:var(--muted);margin-top:6px;">Key จะไม่ถูกบันทึกไว้ — ใช้เพื่อทดสอบเท่านั้น</p>
+    <p style="font-size:.76rem;color:var(--muted);margin-top:6px;">Key ไม่ถูกบันทึก — ใช้ทดสอบเท่านั้น</p>
+
+    <!-- Models Table -->
+    <div id="modelsListArea">
+      <hr class="divider" style="margin:14px 0" />
+      <div style="font-size:0.82rem;color:var(--muted);margin-bottom:8px;" id="modelsListTitle"></div>
+      <div style="overflow-x:auto;">
+        <table class="models-table" id="modelsTable">
+          <thead><tr>
+            <th>Model ID</th>
+            <th>Display Name</th>
+            <th>Methods</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="modelsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
-  <!-- Model Selector -->
+  <!-- Model input -->
   <div class="card">
-    <div class="card-title">🤖 เลือก Model</div>
-    <div class="model-grid" id="modelGrid">
-
-      <label class="model-chip active">
-        <input type="radio" name="model" value="gemini-2.0-flash-exp" checked />
-        <div class="mc-name">Gemini 2.0 Flash Exp</div>
-        <div class="mc-id">gemini-2.0-flash-exp</div>
-        <span class="mc-tag tag-gemini">generateContent</span>
-      </label>
-
-      <label class="model-chip">
-        <input type="radio" name="model" value="gemini-2.5-flash" />
-        <div class="mc-name">Gemini 2.5 Flash</div>
-        <div class="mc-id">gemini-2.5-flash</div>
-        <span class="mc-tag tag-gemini tag-new">generateContent</span>
-      </label>
-
-      <label class="model-chip">
-        <input type="radio" name="model" value="gemini-2.5-flash-preview-05-20" />
-        <div class="mc-name">Gemini 2.5 Flash Preview</div>
-        <div class="mc-id">gemini-2.5-flash-preview-05-20</div>
-        <span class="mc-tag tag-gemini">generateContent</span>
-      </label>
-
-      <label class="model-chip">
-        <input type="radio" name="model" value="imagen-3.0-generate-002" />
-        <div class="mc-name">Imagen 3</div>
-        <div class="mc-id">imagen-3.0-generate-002</div>
-        <span class="mc-tag tag-imagen">predict</span>
-      </label>
-
-      <label class="model-chip">
-        <input type="radio" name="model" value="imagen-4.0-generate-001" />
-        <div class="mc-name">Imagen 4</div>
-        <div class="mc-id">imagen-4.0-generate-001</div>
-        <span class="mc-tag tag-imagen tag-new">predict</span>
-      </label>
-
-      <label class="model-chip">
-        <input type="radio" name="model" value="imagen-4.0-fast-generate-001" />
-        <div class="mc-name">Imagen 4 Fast</div>
-        <div class="mc-id">imagen-4.0-fast-generate-001</div>
-        <span class="mc-tag tag-imagen tag-new">predict</span>
-      </label>
-
-      <label class="model-chip" style="border-style:dashed">
-        <input type="radio" name="model" value="__auto__" />
-        <div class="mc-name">🔄 ลองทุก model</div>
-        <div class="mc-id">Auto-try all above</div>
-        <span class="mc-tag" style="background:#1a2030;color:#94a3b8">fallback chain</span>
-      </label>
-
+    <div class="card-title">🤖 Model ที่จะทดสอบ</div>
+    <div class="field">
+      <label>Model ID (พิมพ์เองหรือกด "ใช้" จากตารางด้านบน)</label>
+      <input type="text" id="modelInput" value="gemini-2.0-flash-exp" placeholder="เช่น gemini-2.5-flash, imagen-4.0-generate-001" />
+    </div>
+    <div style="font-size:0.78rem;color:var(--muted);">
+      💡 Model ที่รองรับ <code style="color:#60a5fa">generateContent</code> = Gemini (ภาพผ่าน TEXT modality) &nbsp;|&nbsp;
+      <code style="color:#c084fc">predict</code> = Imagen (ภาพโดยตรง)
     </div>
   </div>
 
   <!-- Prompt + Settings -->
   <div class="card">
-    <div class="card-title">✍️ Prompt</div>
+    <div class="card-title">✍️ Prompt & Settings</div>
     <div class="field">
-      <textarea id="promptInput" rows="4" placeholder="A cinematic portrait of a young astronaut on the moon, golden hour, photorealistic, 8K..."></textarea>
+      <label>Prompt</label>
+      <textarea id="promptInput" rows="4" placeholder="A cinematic portrait of an astronaut on the moon, golden hour, photorealistic, 8K..."></textarea>
     </div>
     <div class="row2">
       <div class="field">
@@ -248,11 +196,11 @@
     </button>
   </div>
 
-  <!-- Results -->
+  <!-- Result -->
   <div id="resultArea">
     <div class="card">
       <div class="result-header">
-        <div class="result-title">ผลลัพธ์</div>
+        <div style="font-weight:700">ผลลัพธ์</div>
         <span class="status-badge" id="statusBadge">—</span>
       </div>
       <div id="resultContent"></div>
@@ -260,51 +208,103 @@
   </div>
 
 </div>
-
 <script>
 const $ = id => document.getElementById(id);
 
 function toggleKey() {
-  const inp = $('apiKey');
-  inp.type = inp.type === 'password' ? 'text' : 'password';
+  const i = $('apiKey'); i.type = i.type === 'password' ? 'text' : 'password';
 }
 
-// model chip selection
-document.querySelectorAll('.model-chip input[type=radio]').forEach(radio => {
-  radio.closest('.model-chip').addEventListener('click', () => {
-    document.querySelectorAll('.model-chip').forEach(c => c.classList.remove('active'));
-    radio.closest('.model-chip').classList.add('active');
+async function listModels() {
+  const apiKey = $('apiKey').value.trim();
+  if (!apiKey) { alert('ใส่ API Key ก่อน'); return; }
+
+  const btn = $('listBtn');
+  btn.disabled = true; btn.textContent = '⏳ กำลังโหลด...';
+
+  try {
+    const res  = await fetch('/api/test/google-list-models', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ api_key: apiKey })
+    });
+    const data = await res.json();
+    if (!data.ok) { alert('Error: ' + data.error); return; }
+
+    renderModelsTable(data.models);
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '🔍 ดู Models ที่ใช้ได้';
+  }
+}
+
+function renderModelsTable(models) {
+  const area  = $('modelsListArea');
+  const tbody = $('modelsTableBody');
+  const title = $('modelsListTitle');
+
+  // sort: imagen + gemini first, rest after
+  models.sort((a, b) => {
+    const aName = a.name || '';
+    const bName = b.name || '';
+    const score = n => (n.includes('imagen') ? 0 : n.includes('gemini') ? 1 : 2);
+    return score(aName) - score(bName);
   });
-});
+
+  title.textContent = `พบ ${models.length} models — กด "ใช้" เพื่อเลือก model นั้นไปทดสอบ`;
+
+  tbody.innerHTML = models.map(m => {
+    const modelId = (m.name || '').replace('models/', '');
+    const methods = m.supportedGenerationMethods || [];
+    const tags = methods.map(met => {
+      if (met === 'generateContent') return `<span class="method-tag tag-gc">generateContent</span>`;
+      if (met === 'predict')         return `<span class="method-tag tag-pred">predict</span>`;
+      return `<span class="method-tag tag-embed">${escHtml(met)}</span>`;
+    }).join('');
+    const hasImg = methods.includes('generateContent') || methods.includes('predict');
+    return `<tr>
+      <td><code style="font-size:.78rem;color:#94a3b8">${escHtml(modelId)}</code></td>
+      <td style="color:var(--text);font-size:.82rem">${escHtml(m.displayName || '')}</td>
+      <td>${tags}</td>
+      <td>${hasImg ? `<button class="btn-use-model" onclick="useModel('${escHtml(modelId)}')">ใช้</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+
+  area.style.display = 'block';
+}
+
+function useModel(modelId) {
+  $('modelInput').value = modelId;
+  // scroll to model input
+  $('modelInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  $('modelInput').focus();
+}
 
 async function runTest() {
   const apiKey = $('apiKey').value.trim();
-  if (!apiKey) { alert('กรุณาใส่ API Key ก่อน'); return; }
+  if (!apiKey) { alert('ใส่ API Key ก่อน'); return; }
   const prompt = $('promptInput').value.trim();
-  if (!prompt)  { alert('กรุณาใส่ prompt ก่อน'); return; }
-  const model       = document.querySelector('input[name=model]:checked').value;
+  if (!prompt)  { alert('ใส่ prompt ก่อน'); return; }
+  const model       = ($('modelInput').value || '').trim() || 'gemini-2.0-flash-exp';
   const aspectRatio = $('aspectRatio').value;
   const sampleCount = parseInt($('sampleCount').value);
 
-  // UI → loading
   $('genBtn').disabled = true;
   $('genSpinner').style.display = '';
   $('genLabel').textContent = 'กำลัง generate...';
   $('resultArea').style.display = 'block';
-  $('statusBadge').className = 'status-badge status-trying';
-  $('statusBadge').textContent = '⏳ กำลังทดสอบ...';
-  $('resultContent').innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:10px 0">รอผล...</div>';
+  $('statusBadge').className = 'status-badge status-wait';
+  $('statusBadge').textContent = '⏳ รอผล...';
+  $('resultContent').innerHTML = `<div style="color:var(--muted);font-size:.84rem;padding:6px 0">ส่งคำขอไปยัง <code>${escHtml(model)}</code>...</div>`;
 
   try {
-    const res = await fetch('/api/test/google-imagen', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const res  = await fetch('/api/test/google-imagen', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ api_key: apiKey, model, prompt, aspect_ratio: aspectRatio, sample_count: sampleCount })
     });
-    const data = await res.json();
-    renderResult(data);
-  } catch (e) {
-    renderResult({ ok: false, error: e.message, debug: null });
+    renderResult(await res.json());
+  } catch(e) {
+    renderResult({ ok: false, error: e.message });
   } finally {
     $('genBtn').disabled = false;
     $('genSpinner').style.display = 'none';
@@ -313,59 +313,42 @@ async function runTest() {
 }
 
 function renderResult(data) {
-  const badge = $('statusBadge');
+  const badge   = $('statusBadge');
   const content = $('resultContent');
 
   if (data.ok) {
     badge.className = 'status-badge status-ok';
     badge.textContent = '✅ สำเร็จ';
-
     const images = data.images || [];
-    let html = `<p class="model-tried">✅ สำเร็จด้วย model: <b>${escHtml(data.model_used)}</b></p>`;
-
-    if (images.length > 0) {
-      html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:16px;">`;
-      images.forEach((b64, i) => {
-        html += `<div>
-          <img src="data:image/jpeg;base64,${b64}" style="width:100%;border-radius:10px;border:1px solid var(--border);" />
-          <div style="text-align:center;margin-top:6px;">
-            <a class="btn-action" href="data:image/jpeg;base64,${b64}" download="google-test-${i+1}.jpg">⬇ Download</a>
-          </div>
-        </div>`;
-      });
-      html += `</div>`;
+    let html = `<p class="model-used-line">✅ สำเร็จด้วย model: <b>${escHtml(data.model_used)}</b></p>`;
+    if (images.length) {
+      html += `<div class="img-grid">` + images.map((b64, i) =>
+        `<div>
+          <img src="data:image/jpeg;base64,${b64}" />
+          <div class="img-dl"><a class="btn-dl" href="data:image/jpeg;base64,${b64}" download="gen-${i+1}.jpg">⬇ Download</a></div>
+        </div>`
+      ).join('') + `</div>`;
     }
-
-    if (data.debug) {
-      html += debugSection(data.debug);
-    }
+    if (data.debug) html += debugBlock(data.debug);
     content.innerHTML = html;
   } else {
     badge.className = 'status-badge status-fail';
     badge.textContent = '❌ ล้มเหลว';
-
     let html = `<div class="error-box">${escHtml(data.error || 'Unknown error')}</div>`;
-    if (data.debug) {
-      html += debugSection(data.debug);
-    }
+    if (data.debug) html += debugBlock(data.debug);
     content.innerHTML = html;
   }
 }
 
-function debugSection(debug) {
-  const id = 'dbg_' + Math.random().toString(36).slice(2);
-  return `
-    <div style="margin-top:12px;">
-      <button class="debug-toggle" onclick="toggleDebug('${id}')">🔍 Raw Debug Info</button>
-      <div class="debug-box" id="${id}">
-        <pre>${escHtml(JSON.stringify(debug, null, 2))}</pre>
-      </div>
-    </div>`;
+function debugBlock(debug) {
+  const id = 'dbg_' + Math.random().toString(36).slice(2,8);
+  return `<button class="debug-toggle" onclick="toggleDebug('${id}')">🔍 Raw Debug Info</button>
+    <div class="debug-box" id="${id}"><pre>${escHtml(JSON.stringify(debug, null, 2))}</pre></div>`;
 }
 
 function toggleDebug(id) {
   const el = document.getElementById(id);
-  el.style.display = el.style.display === 'none' || !el.style.display ? 'block' : 'none';
+  el.style.display = el.style.display === 'block' ? 'none' : 'block';
 }
 
 function escHtml(s) {
