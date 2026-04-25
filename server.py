@@ -1573,15 +1573,20 @@ def test_google_imagen():
     ]
 
     def try_gemini(model_name):
+        # generateContent ไม่รองรับ sampleCount — ต้องเรียกหลายครั้งเอง
         url = f'{BASE}/{model_name}:generateContent?key={api_key}'
         payload = {
             'contents': [{'parts': [{'text': prompt_text}]}],
             'generationConfig': {'responseModalities': ['TEXT', 'IMAGE']},
         }
-        req_info = {'method': 'POST', 'url': url.replace(api_key, '***'), 'body': payload}
-        result   = _http_post_json(url, payload, {})
-        images   = _extract_gc_images(result)
-        return images, req_info, result
+        req_info = {'method': 'POST', 'url': url.replace(api_key, '***'), 'body': payload,
+                    'note': f'called {sample_count}x (generateContent does not support sampleCount)'}
+        all_images = []
+        last_result = {}
+        for _ in range(sample_count):
+            last_result = _http_post_json(url, payload, {})
+            all_images.extend(_extract_gc_images(last_result))
+        return all_images, req_info, last_result
 
     def try_imagen(model_name):
         url = f'{BASE}/{model_name}:predict?key={api_key}'
