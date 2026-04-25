@@ -414,6 +414,21 @@ async function listModels() {
   }
 }
 
+// Model สร้างภาพได้จริงต้องเป็นหนึ่งในนี้:
+// 1. มี predict method → Imagen models
+// 2. ชื่อ model มีคำว่า "image" หรือ "imagen"
+//    (เช่น gemini-2.0-flash-preview-image-generation, imagen-3.0-generate-002)
+// ไม่ใช่แค่ generateContent ทั่วไป (gemini-2.5-flash, gemini-1.5-pro ฯลฯ)
+function isImageModel(m) {
+  const modelId = (m.name || '').toLowerCase();
+  const methods = m.supportedGenerationMethods || [];
+  return methods.includes('predict') ||
+         modelId.includes('imagen') ||
+         modelId.includes('image-generation') ||
+         modelId.includes('-image-') ||
+         modelId.endsWith('-image');
+}
+
 function modelRow(m) {
   const modelId = (m.name || '').replace('models/', '');
   const methods = m.supportedGenerationMethods || [];
@@ -422,25 +437,18 @@ function modelRow(m) {
     if (met === 'predict')         return `<span class="method-tag tag-pred">predict</span>`;
     return `<span class="method-tag tag-misc">${escHtml(met)}</span>`;
   }).join('');
-  const hasImg = methods.includes('generateContent') || methods.includes('predict');
   return `<tr>
     <td><code>${escHtml(modelId)}</code></td>
     <td style="color:var(--text);font-size:.82rem">${escHtml(m.displayName || '')}</td>
     <td>${tags}</td>
-    <td>${hasImg ? `<button class="gt-btn-use" onclick="useModel('${escHtml(modelId)}')">ใช้</button>` : ''}</td>
+    <td><button class="gt-btn-use" onclick="useModel('${escHtml(modelId)}')">ใช้</button></td>
   </tr>`;
 }
 
 function renderModelsTable(models) {
   // split: image-capable vs others
-  const imgModels   = models.filter(m => {
-    const methods = m.supportedGenerationMethods || [];
-    return methods.includes('generateContent') || methods.includes('predict');
-  });
-  const otherModels = models.filter(m => {
-    const methods = m.supportedGenerationMethods || [];
-    return !methods.includes('generateContent') && !methods.includes('predict');
-  });
+  const imgModels   = models.filter(m => isImageModel(m));
+  const otherModels = models.filter(m => !isImageModel(m));
 
   // sort each group: imagen → gemini → rest
   const sortScore = n => n.includes('imagen') ? 0 : n.includes('gemini') ? 1 : 2;
