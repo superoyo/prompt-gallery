@@ -167,10 +167,14 @@ function selectPlatform(slug, closeMenu = true) {
   updateGenerateBtn();
 }
 
+/* helpers: รองรับทั้ง format เก่า (string) และใหม่ ({id,displayName}) */
+function mId(m)   { return typeof m === 'object' ? (m.id || '') : (m || ''); }
+function mName(m) { return typeof m === 'object' ? (m.displayName || m.id || '') : m; }
+
 function renderModelSelector(platform) {
-  const group  = document.getElementById('modelSelectorGroup');
-  const select = document.getElementById('modelSelect');
-  if (!group || !select) return;
+  const group = document.getElementById('modelSelectorGroup');
+  const list  = document.getElementById('modelPickList');
+  if (!group || !list) return;
 
   const models = Array.isArray(platform.enabled_models) ? platform.enabled_models : [];
   if (!models.length) {
@@ -179,15 +183,28 @@ function renderModelSelector(platform) {
     return;
   }
 
-  // Populate options
-  select.innerHTML = models.map(m =>
-    `<option value="${le(m)}">${le(m)}</option>`
-  ).join('');
+  list.innerHTML = models.map((m, i) => {
+    const id   = mId(m);
+    const name = mName(m);
+    // ถ้า displayName กับ id เหมือนกัน ให้แสดงแค่บรรทัดเดียว
+    const showId = name !== id;
+    return `<div class="model-pick-item${i === 0 ? ' selected' : ''}"
+                 onclick="selectModel('${le(id)}', this)"
+                 data-model-id="${le(id)}">
+      <span class="mp-name">${le(name)}</span>
+      ${showId ? `<span class="mp-id">${le(id)}</span>` : ''}
+    </div>`;
+  }).join('');
 
-  // Pre-select first model
-  lab.selectedModel = models[0];
-  select.value = models[0];
+  lab.selectedModel = mId(models[0]);
   group.style.display = '';
+}
+
+function selectModel(modelId, el) {
+  document.querySelectorAll('.model-pick-item').forEach(m => m.classList.remove('selected'));
+  el.classList.add('selected');
+  lab.selectedModel = modelId;
+  updateGenerateBtn();
 }
 
 function togglePlatformMenu(e) {
@@ -297,7 +314,7 @@ async function generate() {
       size: lab.ratio,
       quality,
     };
-    if (lab.selectedModel) body.model = lab.selectedModel;
+    if (lab.selectedModel) body.model = mId(lab.selectedModel);
     const res = await labApi('POST', '/api/lab/generate', body);
 
     const result = res.results?.[0];

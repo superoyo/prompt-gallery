@@ -1171,7 +1171,9 @@ function renderInlineModelPicker(cardId, imgModels, currentEnabled) {
   const picker = document.getElementById(`modelpicker-${cardId}`);
   if (!picker) return;
 
-  const enabledSet = new Set(Array.isArray(currentEnabled) ? currentEnabled : []);
+  // รองรับทั้ง format เก่า (string[]) และใหม่ ({id,displayName}[])
+  const enabledArr = Array.isArray(currentEnabled) ? currentEnabled : [];
+  const enabledSet = new Set(enabledArr.map(m => typeof m === 'object' ? (m.id || '') : m));
 
   if (!imgModels.length) {
     picker.innerHTML = `<div class="apikey-model-picker">
@@ -1189,13 +1191,17 @@ function renderInlineModelPicker(cardId, imgModels, currentEnabled) {
       </div>
       <div class="amp-list" id="amplist-${cardId}">
         ${imgModels.map(m => {
-          const modelId = (m.name||'').replace('models/', '');
-          const checked = enabledSet.has(modelId) ? ' checked' : '';
-          return `<label class="amp-item${enabledSet.has(modelId) ? ' checked' : ''}">
+          const modelId   = (m.name||'').replace('models/', '');
+          const dName     = m.displayName || modelId;
+          const isChecked = enabledSet.has(modelId);
+          return `<label class="amp-item${isChecked ? ' checked' : ''}">
             <input type="checkbox" class="amp-cb" value="${esc(modelId)}"
-                   onchange="ampToggleLabel(this)"${checked}/>
-            <span class="amp-model-id">${esc(modelId)}</span>
-            <span class="amp-display-name">${esc(m.displayName||'')}</span>
+                   data-display-name="${esc(dName)}"
+                   onchange="ampToggleLabel(this)"${isChecked ? ' checked' : ''}/>
+            <span class="amp-model-info">
+              <span class="amp-display-name">${esc(dName)}</span>
+              <span class="amp-model-id">${esc(modelId)}</span>
+            </span>
           </label>`;
         }).join('')}
       </div>
@@ -1243,9 +1249,10 @@ function ampCheckAll(cardId, masterCb) {
 
 async function saveModelPicker(cardId) {
   const statusEl = document.getElementById(`amp-status-${cardId}`);
-  const checked  = Array.from(
+  // บันทึกเป็น {id, displayName} เพื่อให้ Prompt Lab แสดงชื่อที่อ่านได้
+  const checked = Array.from(
     document.querySelectorAll(`#amplist-${cardId} .amp-cb:checked`)
-  ).map(cb => cb.value);
+  ).map(cb => ({ id: cb.value, displayName: cb.dataset.displayName || cb.value }));
 
   statusEl.textContent = '⏳ กำลังบันทึก...';
   try {

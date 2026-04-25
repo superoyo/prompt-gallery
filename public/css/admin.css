@@ -943,11 +943,12 @@ body { background: var(--bg); color: var(--text); display: flex; overflow: hidde
 .amp-item:hover  { border-color: var(--blue-3); background: #eff6ff; }
 .amp-item.checked { border-color: var(--blue-3); background: #eff6ff; }
 .amp-cb          { width: 16px; height: 16px; flex-shrink: 0; cursor: pointer;
-                   accent-color: var(--blue-2); }
-.amp-model-id    { font-family: 'Fira Code', monospace; font-size: .76rem;
-                   color: var(--text); flex: 1; min-width: 0; overflow: hidden;
-                   text-overflow: ellipsis; white-space: nowrap; }
-.amp-display-name { font-size: .75rem; color: var(--text-3); flex-shrink: 0; }
+                   accent-color: var(--blue-2); margin-top: 2px; }
+.amp-model-info  { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.amp-display-name { font-size: .82rem; font-weight: 600; color: var(--text);
+                    line-height: 1.3; }
+.amp-model-id    { font-family: 'Fira Code', monospace; font-size: .72rem;
+                   color: var(--text-3); line-height: 1.3; }
 .amp-footer      { display: flex; align-items: center; gap: 10px; }
 .amp-save-btn    {
   background: var(--grad-btn); color: white; border: none; border-radius: 9px;
