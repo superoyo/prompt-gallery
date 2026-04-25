@@ -1514,12 +1514,7 @@ def test_google_list_models():
         return jsonify({'ok': False, 'error': str(exc)}), 500
 
     models = result.get('models', [])
-    # filter เฉพาะ model ที่น่าสนใจ
-    img_models   = [m for m in models if any(k in m.get('name','').lower()
-                    for k in ('imagen','flash','pro')) and
-                    any('generateContent' in (m.get('supportedGenerationMethods') or [])
-                        or 'predict' in (m.get('supportedGenerationMethods') or []))]
-    return jsonify({'ok': True, 'models': models, 'image_capable': img_models})
+    return jsonify({'ok': True, 'models': models})
 
 
 @app.route('/api/test/google-imagen', methods=['POST'])
