@@ -1487,6 +1487,154 @@ def admin_page():
 def prompt_lab_page():
     return send_from_directory(str(BASE_DIR / 'public'), 'prompt-lab.html')
 
+@app.route('/google-test')
+def google_test_page():
+    return send_from_directory(str(BASE_DIR / 'public'), 'google-test.html')
+
+
+# ─── Google AI Studio Test Route ─────────────────────────────────────────────
+
+@app.route('/api/test/google-imagen', methods=['POST'])
+def test_google_imagen():
+    """
+    หน้าทดสอบ Google AI Studio — ลอง model ต่าง ๆ แล้วส่งผลกลับพร้อม debug info
+    """
+    data        = request.get_json() or {}
+    api_key     = (data.get('api_key') or '').strip()
+    model_req   = (data.get('model')   or 'gemini-2.0-flash-exp').strip()
+    prompt_text = (data.get('prompt')  or '').strip()
+    aspect_ratio = data.get('aspect_ratio', '1:1')
+    sample_count = min(4, max(1, int(data.get('sample_count', 1))))
+
+    if not api_key:
+        return jsonify({'ok': False, 'error': 'ไม่มี API Key'}), 400
+    if not prompt_text:
+        return jsonify({'ok': False, 'error': 'ไม่มี prompt'}), 400
+
+    BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
+
+    # ─── helper: extract base64 from generateContent response ───
+    def _extract_gc_images(result: dict):
+        images = []
+        for cand in result.get('candidates', []):
+            for part in cand.get('content', {}).get('parts', []):
+                if 'inlineData' in part:
+                    b64 = part['inlineData'].get('data', '')
+                    if b64:
+                        images.append(b64)
+        return images
+
+    # ─── helper: extract base64 from predict (Imagen) response ──
+    def _extract_predict_images(result: dict):
+        images = []
+        for pred in result.get('predictions', []):
+            b64 = pred.get('bytesBase64Encoded', '')
+            if b64:
+                images.append(b64)
+        return images
+
+    # ─── Gemini generateContent models ──────────────────────────
+    GEMINI_MODELS = [
+        'gemini-2.0-flash-exp',
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-preview-05-20',
+        'gemini-2.5-flash-preview-04-17',
+    ]
+
+    # ─── Imagen predict models ───────────────────────────────────
+    IMAGEN_MODELS = [
+        'imagen-4.0-generate-001',
+        'imagen-4.0-fast-generate-001',
+        'imagen-3.0-generate-002',
+        'imagen-3.0-generate-001',
+    ]
+
+    def try_gemini(model_name):
+        url = f'{BASE}/{model_name}:generateContent?key={api_key}'
+        payload = {
+            'contents': [{'parts': [{'text': prompt_text}]}],
+            'generationConfig': {'responseModalities': ['TEXT', 'IMAGE']},
+        }
+        req_info = {'method': 'POST', 'url': url.replace(api_key, '***'), 'body': payload}
+        result   = _http_post_json(url, payload, {})
+        images   = _extract_gc_images(result)
+        return images, req_info, result
+
+    def try_imagen(model_name):
+        url = f'{BASE}/{model_name}:predict?key={api_key}'
+        payload = {
+            'instances': [{'prompt': prompt_text}],
+            'parameters': {
+                'sampleCount': sample_count,
+                'aspectRatio': aspect_ratio,
+            },
+        }
+        req_info = {'method': 'POST', 'url': url.replace(api_key, '***'), 'body': payload}
+        result   = _http_post_json(url, payload, {})
+        images   = _extract_predict_images(result)
+        return images, req_info, result
+
+    # ─── Decide which models to run ──────────────────────────────
+    if model_req == '__auto__':
+        models_to_try = [('gemini', m) for m in GEMINI_MODELS] + \
+                        [('imagen', m) for m in IMAGEN_MODELS]
+    elif model_req in GEMINI_MODELS or model_req.startswith('gemini-'):
+        models_to_try = [('gemini', model_req)]
+    else:
+        models_to_try = [('imagen', model_req)]
+
+    # ─── Try each model ──────────────────────────────────────────
+    attempts = []
+    for kind, mname in models_to_try:
+        try:
+            if kind == 'gemini':
+                images, req_info, raw = try_gemini(mname)
+            else:
+                images, req_info, raw = try_imagen(mname)
+
+            # truncate raw response for debug (images can be huge)
+            raw_debug = json.loads(json.dumps(raw))
+            _truncate_b64_in_debug(raw_debug)
+
+            if images:
+                attempts.append({'model': mname, 'status': 'ok', 'request': req_info, 'response_summary': raw_debug})
+                return jsonify({
+                    'ok': True,
+                    'model_used': mname,
+                    'images': images,
+                    'debug': {'attempts': attempts}
+                })
+            else:
+                attempts.append({'model': mname, 'status': 'no_image',
+                                  'request': req_info, 'response_summary': raw_debug})
+        except Exception as exc:
+            err_str = str(exc)[:500]
+            attempts.append({'model': mname, 'status': 'error', 'error': err_str})
+
+    # All failed
+    err_summary = '\n'.join(
+        f'• {a["model"]}: {a.get("error") or a.get("status")}' for a in attempts
+    )
+    return jsonify({
+        'ok': False,
+        'error': f'ทดสอบแล้ว {len(attempts)} model ทั้งหมดล้มเหลว:\n{err_summary}',
+        'debug': {'attempts': attempts}
+    })
+
+
+def _truncate_b64_in_debug(obj, max_len=80):
+    """ตัด base64 ที่ยาวใน dict/list เพื่อแสดงใน debug โดยไม่ล้น"""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, str) and len(v) > max_len and k in ('data', 'bytesBase64Encoded'):
+                obj[k] = v[:max_len] + f'... [{len(v)} chars]'
+            else:
+                _truncate_b64_in_debug(v, max_len)
+    elif isinstance(obj, list):
+        for item in obj:
+            _truncate_b64_in_debug(item, max_len)
+
+
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(str(UPLOAD_FOLDER), filename)
