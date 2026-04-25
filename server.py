@@ -661,8 +661,16 @@ def _gen_google_imagen(api_key: str, prompt: str, size_key: str, model_override:
                         return data
         return None
 
+    # modality combinations to try (order matters for some models)
+    MODALITY_SETS = [
+        ['IMAGE'],
+        ['TEXT', 'IMAGE'],
+        ['IMAGE', 'TEXT'],
+    ]
+
     if model_override:
-        models_to_try = [(model_override, ['IMAGE', 'TEXT'])]
+        # ลองทุก modality combination กับโมเดลที่ระบุ
+        models_to_try = [(model_override, m) for m in MODALITY_SETS]
     else:
         models_to_try = [
             ('gemini-2.0-flash-preview-image-generation', ['IMAGE']),
@@ -670,8 +678,10 @@ def _gen_google_imagen(api_key: str, prompt: str, size_key: str, model_override:
             ('gemini-2.0-flash',                          ['IMAGE', 'TEXT']),
         ]
 
+    last_raw_snippet = ''
     errors = {}
     for model_name, modalities in models_to_try:
+        attempt_key = f'{model_name} [{",".join(modalities)}]'
         try:
             url = f'{BASE}/{model_name}:generateContent?key={api_key}'
             payload = {
@@ -682,20 +692,19 @@ def _gen_google_imagen(api_key: str, prompt: str, size_key: str, model_override:
             b64 = _extract_image_from_gc(result)
             if b64:
                 return _save_b64_image(b64), 0.02, _estimate_tokens(prompt)
-            # ได้ response แต่ไม่มีภาพ — เก็บ error ไว้
-            errors[model_name] = 'response OK แต่ไม่มี inlineData image'
+            # ได้ response แต่ไม่มีภาพ — เก็บ snippet ไว้ debug
+            import json as _json
+            last_raw_snippet = _json.dumps(result, ensure_ascii=False)[:300]
+            errors[attempt_key] = f'response OK แต่ไม่มี image data'
         except Exception as exc:
-            errors[model_name] = str(exc)[:200]
+            errors[attempt_key] = str(exc)[:200]
 
-    # ทุก model ล้มเหลว — รายงานรายละเอียด
-    err_lines = '\n'.join(f'  • {m}: {e}' for m, e in errors.items())
+    # ทุก combination ล้มเหลว
+    err_lines = '\n'.join(f'  • {k}: {v}' for k, v in errors.items())
+    hint = f'\nResponse snippet: {last_raw_snippet}' if last_raw_snippet else ''
     raise Exception(
-        f'Google Gemini: ไม่สามารถสร้างภาพได้ ลองแล้ว {len(errors)} โมเดล:\n'
-        f'{err_lines}\n'
-        f'กรุณาตรวจสอบ:\n'
-        f'  1. API key ถูกต้อง (ขึ้นต้นด้วย AIza...)\n'
-        f'  2. เปิดใช้งาน "Generative Language API" ใน Google Cloud Console\n'
-        f'  3. เปิด Image Generation feature ใน AI Studio (aistudio.google.com)'
+        f'Google Gemini: ไม่สามารถสร้างภาพได้ ลองแล้ว {len(errors)} วิธี:\n'
+        f'{err_lines}{hint}'
     )
 
 
