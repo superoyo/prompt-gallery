@@ -278,6 +278,66 @@ a:hover { text-decoration: underline; }
   border-color: var(--blue-5);
 }
 
+/* ── Hamburger (network switcher) ──────────────────────────────── */
+.nav-hamburger {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background var(--transition);
+}
+.nav-hamburger:hover,
+.nav-item.open .nav-hamburger {
+  background: var(--bg-3);
+}
+.nav-hamburger span {
+  display: block;
+  width: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text-2);
+  transition: background var(--transition), transform 0.18s ease, opacity 0.18s ease;
+}
+/* Animate to X when open */
+.nav-item.open .nav-hamburger span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+.nav-item.open .nav-hamburger span:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+.nav-item.open .nav-hamburger span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+/* Network panel specifics */
+.nav-network-panel {
+  min-width: 250px;
+}
+
+.nav-network-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  padding: 6px 12px 4px;
+}
+
+.nav-dd-icon-beat {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-color: #2a2a4e;
+  font-size: 0.9rem;
+}
+
 /* ── Buttons ───────────────────────────────────────────────────── */
 .btn-primary {
   padding: 10px 22px;

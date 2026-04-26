@@ -15,6 +15,30 @@
 <header class="navbar">
   <div class="nav-inner">
 
+    <!-- Network hamburger -->
+    <div class="nav-item nav-item-dropdown" id="navNetwork">
+      <button class="nav-hamburger" onclick="toggleNavDropdown('navNetwork', event)" aria-label="เว็บในเครือ">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="nav-dropdown nav-network-panel" id="navNetworkDropdown">
+        <div class="nav-network-label">เว็บในเครือ</div>
+        <a href="https://2026beat-production.up.railway.app" class="nav-dropdown-item" target="_blank" rel="noopener">
+          <span class="nav-dd-icon nav-dd-icon-beat">🎵</span>
+          <span class="nav-dd-info">
+            <span class="nav-dd-title">BEAT</span>
+            <span class="nav-dd-desc">2026beat-production.up.railway.app</span>
+          </span>
+        </a>
+        <a href="https://web-production-8eb90.up.railway.app" class="nav-dropdown-item nav-dd-active" target="_blank" rel="noopener">
+          <span class="nav-dd-icon">✦</span>
+          <span class="nav-dd-info">
+            <span class="nav-dd-title">Prompt Gallery</span>
+            <span class="nav-dd-desc">web-production-8eb90.up.railway.app</span>
+          </span>
+        </a>
+      </div>
+    </div>
+
     <a href="/" class="logo">
       <span>Prompt<strong>Gallery</strong></span>
     </a>
