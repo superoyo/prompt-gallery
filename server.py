@@ -23,11 +23,18 @@ app = Flask(__name__, static_folder=str(BASE_DIR / 'public'), static_url_path=''
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 SECRET_KEY    = os.environ.get('SECRET_KEY', 'prompt-gallery-secret-key-2024')
-# UPLOAD_DIR env var lets Railway Volume override the default path
 UPLOAD_FOLDER = Path(os.environ.get('UPLOAD_DIR', str(BASE_DIR / 'public' / 'uploads')))
 MAX_IMAGE_SIZE = (1200, 1200)
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 SUPER_ADMIN_EMAIL  = 'superoyo@gmail.com'
+
+# ─── Cloudinary (ถ้ามี CLOUDINARY_URL → เก็บรูปใน cloud, ไม่ใช้ local disk) ──
+CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '')
+USE_CLOUDINARY = bool(CLOUDINARY_URL)
+if USE_CLOUDINARY:
+    import cloudinary
+    import cloudinary.uploader
+    cloudinary.config(cloudinary_url=CLOUDINARY_URL)
 
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
@@ -385,10 +392,8 @@ def require_admin(fn):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def process_image(file) -> str:
-    filename  = f'{uuid.uuid4()}.webp'
-    save_path = UPLOAD_FOLDER / filename
-    img = Image.open(file)
+def _img_to_bytes(img: Image.Image) -> bytes:
+    """Convert PIL Image → WebP bytes."""
     img.thumbnail(MAX_IMAGE_SIZE, Image.LANCZOS)
     if img.mode in ('RGBA', 'P'):
         bg = Image.new('RGB', img.size, (255, 255, 255))
@@ -396,8 +401,54 @@ def process_image(file) -> str:
             img = img.convert('RGBA')
         bg.paste(img, mask=img.split()[3] if img.mode == 'RGBA' else None)
         img = bg
-    img.save(save_path, 'WEBP', quality=85)
-    return filename
+    elif img.mode != 'RGB':
+        img = img.convert('RGB')
+    buf = io.BytesIO()
+    img.save(buf, 'WEBP', quality=85)
+    return buf.getvalue()
+
+def _store_image(img_bytes: bytes) -> str:
+    """
+    Store image bytes.
+    - Cloudinary: upload → return full https:// URL
+    - Local: save to UPLOAD_FOLDER → return filename only
+    """
+    if USE_CLOUDINARY:
+        res = cloudinary.uploader.upload(
+            img_bytes,
+            resource_type='image',
+            format='webp',
+            folder='prompt-gallery',
+        )
+        return res['secure_url']   # เก็บ URL เต็มใน DB
+    else:
+        filename  = f'{uuid.uuid4()}.webp'
+        (UPLOAD_FOLDER / filename).write_bytes(img_bytes)
+        return filename            # เก็บแค่ชื่อไฟล์ใน DB
+
+def _delete_image(image_path: str):
+    """ลบรูปออกจาก Cloudinary หรือ local disk."""
+    if not image_path:
+        return
+    if image_path.startswith('http'):
+        if USE_CLOUDINARY:
+            # ดึง public_id จาก URL  (…/prompt-gallery/uuid.webp → prompt-gallery/uuid)
+            try:
+                pub = '/'.join(image_path.split('/')[-2:]).rsplit('.', 1)[0]
+                cloudinary.uploader.destroy(pub)
+            except Exception:
+                pass
+    else:
+        try:
+            (UPLOAD_FOLDER / image_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+def process_image(file) -> str:
+    """รับ FileStorage object → บันทึกและคืน path/URL."""
+    img   = Image.open(file)
+    data  = _img_to_bytes(img)
+    return _store_image(data)
 
 def row_to_dict(row):
     return dict(row)
@@ -474,51 +525,19 @@ def _http_post_multipart(url, fields, headers):
 
 def _save_b64_image(b64_data: str) -> str:
     import base64 as _b64
-    filename = f'{uuid.uuid4()}.webp'
-    save_path = UPLOAD_FOLDER / filename
-    img_bytes = _b64.b64decode(b64_data)
-    img = Image.open(io.BytesIO(img_bytes))
-    if img.mode in ('RGBA', 'P'):
-        bg = Image.new('RGB', img.size, (255, 255, 255))
-        if img.mode == 'P':
-            img = img.convert('RGBA')
-        bg.paste(img, mask=img.split()[3] if img.mode == 'RGBA' else None)
-        img = bg
-    elif img.mode != 'RGB':
-        img = img.convert('RGB')
-    img.save(save_path, 'WEBP', quality=85)
-    return filename
+    img = Image.open(io.BytesIO(_b64.b64decode(b64_data)))
+    return _store_image(_img_to_bytes(img))
 
 def _save_url_image(image_url: str) -> str:
-    filename = f'{uuid.uuid4()}.webp'
-    save_path = UPLOAD_FOLDER / filename
     req = urllib.request.Request(image_url, headers={'User-Agent': 'PromptGallery/1.0'})
     with urllib.request.urlopen(req, timeout=60) as resp:
         img_bytes = resp.read()
     img = Image.open(io.BytesIO(img_bytes))
-    if img.mode in ('RGBA', 'P'):
-        bg = Image.new('RGB', img.size, (255, 255, 255))
-        if img.mode == 'P':
-            img = img.convert('RGBA')
-        bg.paste(img, mask=img.split()[3] if img.mode == 'RGBA' else None)
-        img = bg
-    elif img.mode != 'RGB':
-        img = img.convert('RGB')
-    img.save(save_path, 'WEBP', quality=85)
-    return filename
+    return _store_image(_img_to_bytes(img))
 
 def _save_raw_image(raw_bytes: bytes) -> str:
-    filename = f'{uuid.uuid4()}.webp'
-    save_path = UPLOAD_FOLDER / filename
     img = Image.open(io.BytesIO(raw_bytes))
-    if img.mode not in ('RGB', 'RGBA'):
-        img = img.convert('RGB')
-    if img.mode == 'RGBA':
-        bg = Image.new('RGB', img.size, (255, 255, 255))
-        bg.paste(img, mask=img.split()[3])
-        img = bg
-    img.save(save_path, 'WEBP', quality=85)
-    return filename
+    return _store_image(_img_to_bytes(img))
 
 def _gen_openai(api_key, model, prompt, size_key, quality):
     sm = SIZE_MAP.get(size_key, SIZE_MAP['1:1'])
@@ -885,8 +904,7 @@ def delete_prompt(prompt_id):
         # admin ลบได้ทุก prompt
         if row['user_id'] != user['sub'] and not user.get('is_admin'):
             return jsonify({'error': 'ไม่มีสิทธิ์ลบ prompt นี้'}), 403
-        if row['image_path']:
-            (UPLOAD_FOLDER / row['image_path']).unlink(missing_ok=True)
+        _delete_image(row['image_path'])
         conn.execute('DELETE FROM prompts WHERE id=?', (prompt_id,))
     return jsonify({'ok': True})
 
@@ -1320,7 +1338,7 @@ def lab_generate():
             results.append({
                 'slug': slug, 'name': platform['name'], 'icon': platform['icon'],
                 'status': 'success',
-                'image_path': f'/uploads/{filename}',
+                'image_path': filename if filename.startswith('http') else f'/uploads/{filename}',
                 'tokens_used': tokens, 'cost_usd': cost
             })
         except Exception as exc:

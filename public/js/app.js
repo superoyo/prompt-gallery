@@ -193,7 +193,7 @@ function buildCard(p) {
   const placeholder = article.querySelector('.card-img-placeholder');
 
   if (p.image_path) {
-    img.src = `/uploads/${p.image_path}`;
+    img.src = imgSrc(p.image_path);
     img.alt = p.title;
     placeholder.classList.add('hidden');
   } else {
@@ -223,7 +223,7 @@ function openViewModal(p) {
   content.innerHTML = `
     <div class="view-image-section">
       ${p.image_path
-        ? `<img class="view-img" src="/uploads/${escHtml(p.image_path)}" alt="${escHtml(p.title)}" />`
+        ? `<img class="view-img" src="${escHtml(imgSrc(p.image_path))}" alt="${escHtml(p.title)}" />`
         : `<div class="view-img-placeholder">
              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -530,6 +530,12 @@ function escHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+/** รูปภาพ: ถ้าเป็น URL เต็ม (Cloudinary) ใช้โดยตรง ไม่ก็เติม /uploads/ */
+function imgSrc(path) {
+  if (!path) return '';
+  return path.startsWith('http') ? path : `/uploads/${path}`;
 }
 
 function formatDate(iso) {

@@ -453,9 +453,12 @@ function renderHistoryFeed(items) {
     const iconHtml = labIcon(iconRaw, '1em');
     const isOk = item.status === 'success';
 
-    const thumb = (isOk && item.result_image_path)
-      ? `<img class="hi-thumb" src="/uploads/${le(item.result_image_path)}"
-              alt="" onclick="openLightbox('/uploads/${le(item.result_image_path)}', '${le(item.platform_name)}')" />`
+    const thumbSrc = item.result_image_path
+      ? (item.result_image_path.startsWith('http') ? item.result_image_path : `/uploads/${item.result_image_path}`)
+      : '';
+    const thumb = (isOk && thumbSrc)
+      ? `<img class="hi-thumb" src="${le(thumbSrc)}"
+              alt="" onclick="openLightbox('${le(thumbSrc)}', '${le(item.platform_name)}')" />`
       : `<div class="hi-thumb-placeholder" title="${le(item.error_msg || '')}">${isOk ? iconHtml : '❌'}</div>`;
 
     const promptShort = (item.prompt_text || '').slice(0, 80) + (item.prompt_text?.length > 80 ? '…' : '');
