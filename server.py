@@ -297,22 +297,28 @@ def _ensure_super_admin():
             'SELECT id FROM users WHERE email=?', (SUPER_ADMIN_EMAIL,)
         ).fetchone()
         if not existing:
-            pw = 'Admin@1234'          # password เริ่มต้น — เปลี่ยนได้ผ่านหน้า admin
+            pw = 'Admin@1234'
             pw_hash = bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
             now = datetime.now(timezone.utc).isoformat()
-            conn.execute(
+            cur = conn.execute(
                 'INSERT OR IGNORE INTO users (username, email, password_hash, is_admin, created_at) '
                 'VALUES (?,?,?,1,?)',
                 ('superoyo', SUPER_ADMIN_EMAIL, pw_hash, now)
             )
+            print(f'[startup] admin created, id={cur.lastrowid}', flush=True)
         else:
-            # ตรวจสอบว่า is_admin ถูกตั้งค่าแล้ว
             conn.execute(
                 'UPDATE users SET is_admin=1 WHERE email=?', (SUPER_ADMIN_EMAIL,)
             )
+            print(f'[startup] admin already exists id={existing["id"]}', flush=True)
 
 
-init_db()
+try:
+    init_db()
+    print('[startup] init_db OK', flush=True)
+except Exception as _e:
+    print(f'[startup] init_db FAILED: {_e}', flush=True)
+    raise
 
 
 # ─── JWT ──────────────────────────────────────────────────────────────────────
@@ -1734,6 +1740,37 @@ def _truncate_b64_in_debug(obj, max_len=80):
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
     return send_from_directory(str(UPLOAD_FOLDER), filename)
+
+
+@app.route('/api/health')
+def health():
+    """Diagnostic endpoint — ตรวจสภาพ DB และ admin user."""
+    info = {
+        'db_backend': 'postgresql' if USE_POSTGRES else 'sqlite',
+        'cloudinary': USE_CLOUDINARY,
+        'tables': {},
+        'admin_exists': False,
+        'error': None,
+    }
+    try:
+        with get_db() as conn:
+            for t in ['users', 'prompts', 'categories', 'ai_platforms', 'prompt_history']:
+                try:
+                    n = conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
+                    info['tables'][t] = n
+                except Exception as te:
+                    info['tables'][t] = f'ERROR: {te}'
+            admin = conn.execute(
+                'SELECT id, username, is_admin FROM users WHERE email=?',
+                (SUPER_ADMIN_EMAIL,)
+            ).fetchone()
+            if admin:
+                info['admin_exists'] = True
+                info['admin_username'] = admin['username']
+                info['admin_is_admin'] = bool(admin['is_admin'])
+    except Exception as e:
+        info['error'] = str(e)
+    return jsonify(info)
 
 
 if __name__ == '__main__':
