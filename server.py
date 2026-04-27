@@ -1,6 +1,5 @@
 import os
 import uuid
-import sqlite3
 import hashlib
 import hmac
 import base64
@@ -17,20 +16,20 @@ from functools import wraps
 from flask import Flask, request, jsonify, send_from_directory
 from PIL import Image
 import bcrypt
+from db import get_db, IntegrityError, USE_POSTGRES
 
 BASE_DIR = Path(__file__).parent.resolve()
 app = Flask(__name__, static_folder=str(BASE_DIR / 'public'), static_url_path='')
 
 # ─── Config ──────────────────────────────────────────────────────────────────
-SECRET_KEY   = os.environ.get('SECRET_KEY', 'prompt-gallery-secret-key-2024')
-UPLOAD_FOLDER = BASE_DIR / 'public' / 'uploads'
-DB_PATH       = BASE_DIR / 'data' / 'database.db'
+SECRET_KEY    = os.environ.get('SECRET_KEY', 'prompt-gallery-secret-key-2024')
+# UPLOAD_DIR env var lets Railway Volume override the default path
+UPLOAD_FOLDER = Path(os.environ.get('UPLOAD_DIR', str(BASE_DIR / 'public' / 'uploads')))
 MAX_IMAGE_SIZE = (1200, 1200)
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 SUPER_ADMIN_EMAIL  = 'superoyo@gmail.com'
 
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
-DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_CATEGORIES = [
     'Social Media', 'Infographic', 'YouTube Thumbnail',
@@ -135,11 +134,7 @@ def _seed_platforms():
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA journal_mode=WAL')
-    return conn
+# get_db is imported from db.py
 
 
 def init_db():
@@ -759,7 +754,7 @@ def register():
         log_login(user_id, username, True)
         token = create_token(user_id, username, bool(is_admin))
         return jsonify({'token': token, 'username': username, 'is_admin': bool(is_admin)}), 201
-    except sqlite3.IntegrityError as e:
+    except IntegrityError as e:
         if 'username' in str(e).lower():
             return jsonify({'error': 'Username นี้ถูกใช้ไปแล้ว'}), 409
         return jsonify({'error': 'Email นี้ถูกใช้ไปแล้ว'}), 409
@@ -908,15 +903,16 @@ def get_categories():
     with_count   = request.args.get('with_count', '0') == '1'
 
     if with_count:
-        rows = get_db().execute('''
-            SELECT c.id, c.name, c.sort_order, c.is_visible,
-                   COUNT(p.id) AS prompt_count
-            FROM categories c
-            LEFT JOIN prompts p ON p.category = c.name
-            WHERE (? = 0 OR c.is_visible = 1)
-            GROUP BY c.id
-            ORDER BY c.sort_order, c.name
-        ''', (0 if not visible_only else 1,)).fetchall()
+        with get_db() as conn:
+            rows = conn.execute('''
+                SELECT c.id, c.name, c.sort_order, c.is_visible,
+                       COUNT(p.id) AS prompt_count
+                FROM categories c
+                LEFT JOIN prompts p ON p.category = c.name
+                WHERE (? = 0 OR c.is_visible = 1)
+                GROUP BY c.id
+                ORDER BY c.sort_order, c.name
+            ''', (0 if not visible_only else 1,)).fetchall()
         return jsonify([row_to_dict(r) for r in rows])
 
     query = 'SELECT name FROM categories'
@@ -924,7 +920,8 @@ def get_categories():
     if visible_only:
         query += ' WHERE is_visible=1'
     query += ' ORDER BY sort_order, name'
-    rows = get_db().execute(query, params).fetchall()
+    with get_db() as conn:
+        rows = conn.execute(query, params).fetchall()
     return jsonify([r['name'] for r in rows])
 
 
@@ -1124,14 +1121,15 @@ def admin_list_prompts():
 @require_admin
 def admin_list_categories():
     """ดูทุกหมวดหมู่พร้อมจำนวน prompt และสถานะ"""
-    rows = get_db().execute('''
-        SELECT c.id, c.name, c.sort_order, c.is_visible, c.created_at,
-               COUNT(p.id) AS prompt_count
-        FROM categories c
-        LEFT JOIN prompts p ON p.category = c.name
-        GROUP BY c.id
-        ORDER BY c.sort_order, c.name
-    ''').fetchall()
+    with get_db() as conn:
+        rows = conn.execute('''
+            SELECT c.id, c.name, c.sort_order, c.is_visible, c.created_at,
+                   COUNT(p.id) AS prompt_count
+            FROM categories c
+            LEFT JOIN prompts p ON p.category = c.name
+            GROUP BY c.id
+            ORDER BY c.sort_order, c.name
+        ''').fetchall()
     return jsonify([row_to_dict(r) for r in rows])
 
 
@@ -1155,7 +1153,7 @@ def admin_create_category():
                 (name, max_order + 1, now)
             )
             cat_id = cursor.lastrowid
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             return jsonify({'error': f'หมวดหมู่ "{name}" มีอยู่แล้ว'}), 409
     with get_db() as conn:
         row = conn.execute('SELECT * FROM categories WHERE id=?', (cat_id,)).fetchone()
@@ -1184,7 +1182,7 @@ def admin_update_category(cat_id):
             # อัปเดต category ใน prompts ด้วยถ้าชื่อเปลี่ยน
             if new_name != old_name:
                 conn.execute('UPDATE prompts SET category=? WHERE category=?', (new_name, old_name))
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             return jsonify({'error': f'ชื่อ "{new_name}" ซ้ำกับหมวดหมู่อื่น'}), 409
 
     with get_db() as conn:
@@ -1433,7 +1431,7 @@ def admin_create_platform():
                  data.get('docs_guide',''), data.get('extra_config','{}'), now)
             )
             pid = cur.lastrowid
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             return jsonify({'error': f'Slug "{slug}" ซ้ำกับ platform อื่น'}), 409
     with get_db() as conn:
         row = conn.execute('SELECT * FROM ai_platforms WHERE id=?', (pid,)).fetchone()
