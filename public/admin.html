@@ -46,6 +46,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
       Login Logs
     </a>
+    <a href="#" class="nav-item" data-page="survey">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      แบบสอบถาม
+    </a>
 
     <!-- Settings group -->
     <div class="nav-divider"></div>
@@ -308,6 +312,33 @@
       </table>
     </div>
     <div class="pagination" id="logsPagination"></div>
+  </div>
+
+  <!-- Survey Page -->
+  <div id="page-survey" class="page">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">แบบสอบถาม</h1>
+        <p class="page-sub">รายชื่อและเบอร์โทรที่ส่งเข้ามา</p>
+      </div>
+      <div class="page-actions">
+        <input type="text" id="surveySearch" class="search-input" placeholder="ค้นหาชื่อหรือเบอร์โทร..." />
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>ชื่อ</th>
+            <th>เบอร์โทร</th>
+            <th>เวลา</th>
+          </tr>
+        </thead>
+        <tbody id="surveyTbody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="surveyPagination"></div>
   </div>
 
   <!-- ── Settings: API Keys ─────────────────────────────────────── -->

@@ -26,7 +26,7 @@ const A = {
   resetUserId: null,
   usersPage: 1, promptsPage: 1, logsPage: 1,
   logsFilter: 'all',
-  userSearchTimer: null, promptSearchTimer: null,
+  userSearchTimer: null, promptSearchTimer: null, surveySearchTimer: null,
 };
 
 /* ── API ────────────────────────────────────────────────────────── */
@@ -69,6 +69,7 @@ function navigateTo(page) {
   else if (page === 'categories') loadCategories();
   else if (page === 'platforms') loadPlatforms();
   else if (page === 'logs')      loadLogs(1);
+  else if (page === 'survey')    loadSurvey(1);
   else if (page === 'settings-apikeys') loadSettingsApiKeys();
   else if (page === 'settings-tests')   { /* static page */ }
   else if (page === 'test-google')      gt2_loadPlatformInfo();
@@ -699,6 +700,38 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     A.logsFilter = btn.dataset.filter;
     loadLogs(1);
   });
+});
+
+/* ── Survey ──────────────────────────────────────────────────────── */
+async function loadSurvey(page = 1) {
+  A.surveyPage = page;
+  const search = document.getElementById('surveySearch')?.value.trim() || '';
+  try {
+    const data = await api('GET', `/api/admin/survey?page=${page}&search=${encodeURIComponent(search)}`);
+    renderSurveyTable(data.submissions);
+    renderPagination('surveyPagination', data.page, data.pages, loadSurvey);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function renderSurveyTable(rows) {
+  const tbody = document.getElementById('surveyTbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:40px">ยังไม่มีข้อมูลแบบสอบถาม</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td style="color:var(--text-3);font-family:'Fira Code',monospace;font-size:.78rem">#${r.id}</td>
+      <td style="font-weight:600">${esc(r.name)}</td>
+      <td style="font-family:'Fira Code',monospace;font-size:.85rem">${esc(r.phone)}</td>
+      <td style="color:var(--text-2);white-space:nowrap;font-size:.8rem">${fmt(r.created_at)}</td>
+    </tr>
+  `).join('');
+}
+
+document.getElementById('surveySearch')?.addEventListener('input', () => {
+  clearTimeout(A.surveySearchTimer);
+  A.surveySearchTimer = setTimeout(() => loadSurvey(1), 400);
 });
 
 /* ── Pagination ──────────────────────────────────────────────────── */

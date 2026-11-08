@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>แบบสอบถาม – Prompt Gallery</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    .survey-page {
+      min-height: calc(100vh - 64px);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 48px 16px 64px;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(37, 99, 235, 0.12), transparent 60%),
+        var(--bg);
+    }
+    .survey-card {
+      width: 100%;
+      max-width: 440px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 32px 32px;
+      box-shadow: 0 8px 32px rgba(15, 23, 42, 0.06);
+    }
+    .survey-card h1 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0 0 8px;
+    }
+    .survey-card .survey-sub {
+      color: var(--text-2);
+      font-size: 0.92rem;
+      margin: 0 0 28px;
+      line-height: 1.5;
+    }
+    .survey-card .form-actions {
+      margin-top: 8px;
+    }
+    .survey-card .btn-primary {
+      width: 100%;
+      justify-content: center;
+    }
+    .survey-success {
+      text-align: center;
+      padding: 24px 8px;
+    }
+    .survey-success-icon {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 16px;
+      border-radius: 50%;
+      background: #f0fdf4;
+      color: #16a34a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+    }
+    .survey-success h2 {
+      font-size: 1.2rem;
+      margin: 0 0 8px;
+      color: var(--text);
+    }
+    .survey-success p {
+      color: var(--text-2);
+      font-size: 0.9rem;
+      margin: 0 0 20px;
+    }
+  </style>
+</head>
+<body>
+
+<header class="navbar">
+  <div class="nav-inner">
+    <div class="nav-item nav-item-dropdown" id="navNetwork">
+      <button class="nav-hamburger" onclick="toggleNavDropdown('navNetwork', event)" aria-label="เว็บในเครือ">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="nav-dropdown nav-network-panel" id="navNetworkDropdown">
+        <div class="nav-network-label">เว็บในเครือ</div>
+        <a href="https://2026beat-production.up.railway.app" class="nav-dropdown-item">
+          <span class="nav-dd-icon nav-dd-icon-beat">🎵</span>
+          <span class="nav-dd-info">
+            <span class="nav-dd-title">BEAT</span>
+            <span class="nav-dd-desc">2026beat-production.up.railway.app</span>
+          </span>
+        </a>
+        <a href="https://web-production-8eb90.up.railway.app" class="nav-dropdown-item nav-dd-active">
+          <span class="nav-dd-icon">✦</span>
+          <span class="nav-dd-info">
+            <span class="nav-dd-title">Prompt Gallery</span>
+            <span class="nav-dd-desc">web-production-8eb90.up.railway.app</span>
+          </span>
+        </a>
+      </div>
+    </div>
+
+    <a href="/" class="logo">
+      <span>Prompt<strong>Gallery</strong></span>
+    </a>
+
+    <nav class="nav-links" id="navLinks">
+      <a href="/survey" class="nav-link nav-link-active">แบบสอบถาม</a>
+      <div class="nav-item nav-item-dropdown" id="navImages">
+        <button class="nav-link" id="navImagesBtn" onclick="toggleNavDropdown('navImages', event)">
+          Image Generators
+          <svg class="nav-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 6 8 10 12 6"/></svg>
+        </button>
+        <div class="nav-dropdown" id="navImagesDropdown">
+          <a href="/prompt-lab" class="nav-dropdown-item">
+            <span class="nav-dd-icon">🧪</span>
+            <span class="nav-dd-info">
+              <span class="nav-dd-title">Prompt Lab</span>
+              <span class="nav-dd-desc">ทดสอบ prompt กับ AI จริง</span>
+            </span>
+          </a>
+          <a href="/" class="nav-dropdown-item">
+            <span class="nav-dd-icon">🖼️</span>
+            <span class="nav-dd-info">
+              <span class="nav-dd-title">Gallery</span>
+              <span class="nav-dd-desc">ดูคลัง prompt ทั้งหมด</span>
+            </span>
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <div class="nav-right">
+      <div id="authArea"></div>
+    </div>
+  </div>
+</header>
+
+<main class="survey-page">
+  <div class="survey-card" id="surveyCard">
+    <h1>แบบสอบถาม</h1>
+    <p class="survey-sub">กรุณากรอกชื่อและเบอร์โทรศัพท์ของคุณ</p>
+
+    <form id="surveyForm" class="form">
+      <div class="form-group">
+        <label for="surveyName">ชื่อ <span class="required">*</span></label>
+        <input type="text" id="surveyName" name="name" placeholder="ชื่อ-นามสกุล" required maxlength="100" autocomplete="name" />
+      </div>
+      <div class="form-group">
+        <label for="surveyPhone">เบอร์โทร <span class="required">*</span></label>
+        <input type="tel" id="surveyPhone" name="phone" placeholder="เช่น 0812345678" required autocomplete="tel" />
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn-primary" id="surveySubmit">ส่งแบบสอบถาม</button>
+      </div>
+      <p class="form-error" id="surveyError"></p>
+    </form>
+  </div>
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+<script src="/js/survey.js"></script>
+</body>
+</html>

@@ -8,6 +8,7 @@ import time
 import string
 import random
 import io
+import re
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
@@ -219,6 +220,12 @@ def init_db():
                 cost_usd        REAL DEFAULT 0.0,
                 created_at      TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+            CREATE TABLE IF NOT EXISTS survey_submissions (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT NOT NULL,
+                phone      TEXT NOT NULL,
+                created_at TEXT NOT NULL
             );
         ''')
         # migrate existing users table (add columns if missing)
@@ -1083,6 +1090,61 @@ def admin_set_admin(user_id):
     return jsonify({'ok': True, 'is_admin': bool(new_state)})
 
 
+@app.route('/api/survey', methods=['POST'])
+def submit_survey():
+    data  = request.get_json(silent=True) or {}
+    name  = (data.get('name') or '').strip()
+    phone = (data.get('phone') or '').strip()
+
+    if not name:
+        return jsonify({'error': 'กรุณากรอกชื่อ'}), 400
+    if len(name) > 100:
+        return jsonify({'error': 'ชื่อยาวเกินไป (สูงสุด 100 ตัวอักษร)'}), 400
+    if not phone:
+        return jsonify({'error': 'กรุณากรอกเบอร์โทร'}), 400
+
+    digits = re.sub(r'[\s\-]', '', phone)
+    if not re.fullmatch(r'\d{9,15}', digits):
+        return jsonify({'error': 'เบอร์โทรไม่ถูกต้อง (ใช้ตัวเลข 9–15 หลัก)'}), 400
+
+    now = datetime.now(timezone.utc).isoformat()
+    with get_db() as conn:
+        conn.execute(
+            'INSERT INTO survey_submissions (name, phone, created_at) VALUES (?,?,?)',
+            (name, phone, now),
+        )
+    return jsonify({'ok': True})
+
+
+@app.route('/api/admin/survey', methods=['GET'])
+@require_admin
+def admin_survey():
+    page     = max(1, int(request.args.get('page', 1)))
+    per_page = 30
+    search   = request.args.get('search', '').strip()
+
+    query  = 'SELECT * FROM survey_submissions WHERE 1=1'
+    params = []
+    if search:
+        query += ' AND (name LIKE ? OR phone LIKE ?)'
+        s = f'%{search}%'
+        params.extend([s, s])
+
+    count_query = query.replace('SELECT *', 'SELECT COUNT(*)')
+    query      += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
+
+    with get_db() as conn:
+        total = conn.execute(count_query, params).fetchone()[0]
+        rows  = conn.execute(query, params + [per_page, (page - 1) * per_page]).fetchall()
+
+    return jsonify({
+        'submissions': [row_to_dict(r) for r in rows],
+        'total': total,
+        'page': page,
+        'pages': (total + per_page - 1) // per_page,
+    })
+
+
 @app.route('/api/admin/logs', methods=['GET'])
 @require_admin
 def admin_logs():
@@ -1546,6 +1608,10 @@ def admin_page():
 @app.route('/prompt-lab')
 def prompt_lab_page():
     return send_from_directory(str(BASE_DIR / 'public'), 'prompt-lab.html')
+
+@app.route('/survey')
+def survey_page():
+    return send_from_directory(str(BASE_DIR / 'public'), 'survey.html')
 
 @app.route('/google-test')
 def google_test_page():
